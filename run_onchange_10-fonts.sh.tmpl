@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -e
+
+# Runs whenever private_fonts/* changes
+
+{{ if eq .chezmoi.os "linux" -}}
+mkdir -p "$HOME/.local/share/fonts"
+cp -f "{{ .chezmoi.sourceDir }}/private_fonts/"*.ttf "$HOME/.local/share/fonts/"
+fc-cache -fv
+{{ end -}}
+
+{{ if eq .chezmoi.os "darwin" -}}
+echo "Installing fonts on macOS..."
+cp -f "{{ .chezmoi.sourceDir }}/private_fonts/"*.ttf "$HOME/Library/Fonts/"
+{{ end -}}
+

@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -e
+
+{{ if eq .chezmoi.os "linux" -}}
+# ─────────────────────────────────────────────
+# Linux: ensure python3, pip, and pynvim
+# (apt-based: Ubuntu / Pop!_OS / Debian)
+# ─────────────────────────────────────────────
+
+# Ensure python3 & pip are installed
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "Installing python3 and pip via apt..."
+  sudo apt update
+  sudo apt install -y python3 python3-pip
+elif ! python3 -m pip --version >/dev/null 2>&1; then
+  echo "Installing pip for python3 via apt..."
+  sudo apt update
+  sudo apt install -y python3-pip
+fi
+
+{{ else if eq .chezmoi.os "darwin" -}}
+# ─────────────────────────────────────────────
+# macOS: ensure python3, pip, and pynvim
+# (via Homebrew)
+# ─────────────────────────────────────────────
+
+if ! command -v python3 >/dev/null 2>&1; then
+  if command -v brew >/dev/null 2>&1; then
+    echo "Installing python3 via Homebrew..."
+    brew install python
+  else
+    echo "Error: Homebrew not found. Install Homebrew first, then re-run chezmoi."
+    exit 1
+  fi
+fi
+
+# pip comes with Homebrew python, but double-check:
+if ! python3 -m pip --version >/dev/null 2>&1; then
+  echo "pip for python3 seems missing; reinstalling python via Homebrew..."
+  brew reinstall python
+fi
+
+{{ end -}}
+
+# ─────────────────────────────────────────────
+# Both OSes: ensure pynvim is installed
+# ─────────────────────────────────────────────
+
+if ! python3 -m pip show pynvim >/dev/null 2>&1; then
+  echo "Installing pynvim for python3 (user site)..."
+  python3 -m pip install --user pynvim
+else
+  echo "pynvim already installed."
+fi
+

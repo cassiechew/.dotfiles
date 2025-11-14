@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -e
+
+{{ if eq .chezmoi.os "darwin" -}}
+
+if ! command -v brew >/dev/null 2>&1; then
+  echo "Installing Homebrew"
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+fi
+
+echo "Installing core packages with Homebrew..."
+brew install wget ripgrep eza zoxide tmux neovim git-delta
+
+echo "Installing apps with Homebrew..."
+brew install --cask zed
+brew install --cask ghostty
+brew install --cask jetbrains-toolbox
+brew install --cask docker-desktop
+brew install tailscale
+brew install --cask rectangle
+
+{{ end -}}
+

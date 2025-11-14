@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -e
+
+# Antidote
+if [ ! -d "$HOME/.antidote" ]; then
+  echo "Installing antidote..."
+  git clone --depth=1 https://github.com/mattmc3/antidote.git "$HOME/.antidote"
+fi
+
+# zoxide (only if not installed by brew/apt)
+if ! command -v zoxide >/dev/null 2>&1; then
+  curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh
+fi
+
+# Hermit
+if ! command -v hermit >/dev/null 2>&1; then
+  curl -fsSL https://github.com/cashapp/hermit/releases/download/stable/install.sh | /bin/bash
+fi
+
