@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -e
+
+echo "Checking Git installation..."
+
+# ────────────────────────────────
+# Check if git exists
+# ────────────────────────────────
+if command -v git >/dev/null 2>&1; then
+  echo "Git is installed. Version: $(git --version)"
+else
+  echo "Git not found — installing..."
+fi
+
+
+{{ if eq .chezmoi.os "linux" }}
+# ────────────────────────────────
+# Linux (apt-based)
+# ────────────────────────────────
+
+# Install git if missing
+if ! command -v git >/dev/null 2>&1; then
+  sudo apt update
+  sudo apt install -y git
+fi
+
+# Always update git to newest version available in repos
+echo "Updating Git on Linux..."
+sudo apt update
+sudo apt install -y --only-upgrade git
+
+echo "Git version after update: $(git --version)"
+
+
+{{ else if eq .chezmoi.os "darwin" }}
+# ────────────────────────────────
+# macOS
+# ────────────────────────────────
+
+# Git normally comes from Xcode CLT
+if ! command -v git >/dev/null 2>&1; then
+  echo "Installing Git via Xcode Command Line Tools..."
+  xcode-select --install || true
+fi
+
+# If Homebrew exists, update Git using brew
+if command -v brew >/dev/null 2>&1; then
+  echo "Updating Git via Homebrew..."
+  brew update
+  brew upgrade git || brew install git
+else
+  echo "Homebrew not available; using system Git from Xcode."
+fi
+
+echo "Git version after update: $(git --version)"
+
+{{ end }}
+

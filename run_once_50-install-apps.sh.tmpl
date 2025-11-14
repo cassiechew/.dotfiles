@@ -1,0 +1,17 @@
+{{ if eq .chezmoi.os "linux" -}}
+apps=(
+    https://github.com/dandavison/delta/releases/download/0.18.2/git-delta_0.18.2_amd64.deb
+)
+
+bins=(delta)
+
+for i in "${!apps[@]}"; do
+  if ! command -v "${bins[$i]}" >/dev/null 2>&1; then
+    TMP_DEB="$(mktemp --suffix=.deb)"
+    wget -qO "$TMP_DEB" "${apps[$i]}"
+    sudo apt install -y "$TMP_DEB"
+    rm "$TMP_DEB"
+  fi
+done
+{{ end -}}
+
