@@ -17,14 +17,14 @@ local function setup_gitstatus_highlights()
 end
 
 -- Re-apply links whenever the colorscheme changes (Catppuccin flavour switch)
-local gitstatus_group = vim.api.nvim_create_augroup("GitStatusHighlights", { clear = true })
-vim.api.nvim_create_autocmd("ColorScheme", {
-  group = gitstatus_group,
-  callback = setup_gitstatus_highlights,
-})
+--local gitstatus_group = vim.api.nvim_create_augroup("GitStatusHighlights", { clear = true })
+--vim.api.nvim_create_autocmd("ColorScheme", {
+--  group = gitstatus_group,
+--  callback = setup_gitstatus_highlights,
+--})
 
 -- Also run once on startup
-setup_gitstatus_highlights()
+--setup_gitstatus_highlights()
 
 local function colored(text, hl)
   return "%#" .. hl .. "#" .. text .. "%#Normal#"
@@ -135,10 +135,10 @@ return {
       section_separators = { left = "", right = "" },
       component_separators = { left = " ", right = " " },
       disabled_filetypes = { "neo-tree", "NvimTree", "lazy" },
-      refresh = {
-        statusline = 200,
-        winbar = 200,
-      },
+      --refresh = {
+      --  statusline = 200,
+      --  winbar = 200,
+      --},
     })
 
     opts.winbar = {
