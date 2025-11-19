@@ -1,29 +1,26 @@
--- local root_files = {
---   '.luarc.json',
---   '.luarc.jsonc',
---   '.luacheckrc',
---   '.stylua.toml',
---   'stylua.toml',
---   'selene.toml',
---   'selene.yml',
---   '.git',
--- }
-
 return {
     "neovim/nvim-lspconfig",
     dependencies = {
         "stevearc/conform.nvim",
         "williamboman/mason.nvim",
         "williamboman/mason-lspconfig.nvim",
-        "hrsh7th/cmp-nvim-lsp",
-        "hrsh7th/cmp-buffer",
-        "hrsh7th/cmp-path",
-        "hrsh7th/cmp-cmdline",
-        "hrsh7th/nvim-cmp",
-        "L3MON4D3/LuaSnip",
-        "saadparwaiz1/cmp_luasnip",
+        {"ms-jpq/coq_nvim", branch = "coq"},
+        {"ms-jpq/coq.artifacts", branch = "artifacts"},
+        {"ms-jpq/coq.thirdparty", branch = "3p"},
+        --"hrsh7th/cmp-nvim-lsp",
+        --"hrsh7th/cmp-buffer",
+        --"hrsh7th/cmp-path",
+        --"hrsh7th/cmp-cmdline",
+        --"hrsh7th/nvim-cmp",
+        --"L3MON4D3/LuaSnip",
+        --"saadparwaiz1/cmp_luasnip",
         "j-hui/fidget.nvim",
     },
+    init = function ()
+       vim.g.coq_settings = {
+           auto_start = true,
+       } 
+    end,
     opts = {
         setup = {
             ["*"] = function(server_opts)
@@ -52,15 +49,21 @@ return {
     config = function()
         require("conform").setup({
             formatters_by_ft = {
+                go = { "golangci-lint" },
+                elixir = { "mix" },
+                eelixir = { "mix" },
+                heex = { "mix" },
+                surface = { "mix" },
+                lua = { "luacheck" }
             }
         })
-        local cmp = require('cmp')
-        local cmp_lsp = require("cmp_nvim_lsp")
-        local capabilities = vim.tbl_deep_extend(
-            "force",
-            {},
-            vim.lsp.protocol.make_client_capabilities(),
-            cmp_lsp.default_capabilities())
+        --local cmp = require('cmp')
+        --local cmp_lsp = require("cmp_nvim_lsp")
+        --local capabilities = vim.tbl_deep_extend(
+        --    "force",
+        --    {},
+        --    vim.lsp.protocol.make_client_capabilities(),
+        --    cmp_lsp.default_capabilities())
 
         require("fidget").setup({})
         require("mason").setup({
@@ -102,12 +105,22 @@ return {
                     vim.g.zig_fmt_autosave = 0
 
                 end,
-                ["lua_ls"] = function()
+                lua_ls = function()
                     local lspconfig = require("lspconfig")
                     lspconfig.lua_ls.setup {
-                        capabilities = capabilities,
+
+                        -- capabilities = capabilities,
                         settings = {
                             Lua = {
+                                runtime = {
+                                    version = 'LuaJIT'
+                                },
+                                diagnostics = {
+                                    globals = {
+                                        'vim',
+                                        'require',
+                                    },
+                                },
                                 format = {
                                     enable = true,
                                     -- Put format options here
@@ -124,28 +137,28 @@ return {
             }
         })
 
-        local cmp_select = { behavior = cmp.SelectBehavior.Select }
+        --local cmp_select = { behavior = cmp.SelectBehavior.Select }
 
-        cmp.setup({
-            snippet = {
-                expand = function(args)
-                    require('luasnip').lsp_expand(args.body) -- For `luasnip` users.
-                end,
-            },
-            mapping = cmp.mapping.preset.insert({
-                ['<C-p>'] = cmp.mapping.select_prev_item(cmp_select),
-                ['<C-n>'] = cmp.mapping.select_next_item(cmp_select),
-                ['<C-y>'] = cmp.mapping.confirm({ select = true }),
-                ["<C-Space>"] = cmp.mapping.complete(),
-            }),
-            sources = cmp.config.sources({
-                { name = "copilot", group_index = 2 },
-                { name = 'nvim_lsp' },
-                { name = 'luasnip' }, -- For luasnip users.
-            }, {
-                { name = 'buffer' },
-            })
-        })
+        --cmp.setup({
+        --    snippet = {
+        --        expand = function(args)
+        --            require('luasnip').lsp_expand(args.body) -- For `luasnip` users.
+        --        end,
+        --    },
+        --    mapping = cmp.mapping.preset.insert({
+        --        ['<C-p>'] = cmp.mapping.select_prev_item(cmp_select),
+        --        ['<C-n>'] = cmp.mapping.select_next_item(cmp_select),
+        --        ['<C-y>'] = cmp.mapping.confirm({ select = true }),
+        --        ["<C-Space>"] = cmp.mapping.complete(),
+        --    }),
+        --    sources = cmp.config.sources({
+        --        { name = "copilot", group_index = 2 },
+        --        { name = 'nvim_lsp' },
+        --        { name = 'luasnip' }, -- For luasnip users.
+        --    }, {
+        --        { name = 'buffer' },
+        --    })
+        --})
 
         vim.diagnostic.config({
             -- update_in_insert = true,

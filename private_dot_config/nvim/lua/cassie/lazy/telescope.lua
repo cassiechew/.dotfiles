@@ -1,7 +1,7 @@
 return {
     "nvim-telescope/telescope.nvim",
 
-    tag = "0.1.5",
+    tag = "v0.1.9",
 
     dependencies = {
         "nvim-lua/plenary.nvim"
@@ -17,5 +17,15 @@ return {
 			builtin.grep_string({ search = vim.fn.input("Grep > ") })
 		end, { desc = '' })
 	end
+
+    --extensions = {
+    --    file_browser = {
+    --        mappings = {
+    --            ["n"] = {
+
+    --            }
+    --        }
+    --    }
+    --}
 }
 
