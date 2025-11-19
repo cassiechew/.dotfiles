@@ -48,6 +48,8 @@
 # # Just for example:
 # resize-overlay-duration = 4s 200ms
 
-font-family = "pragmasevka"
+#font-family = "pragmasevka"
+font-family = "IosevkaTerm Nerd Font"
 theme = dark:"Catppuccin Frappe",light:"Catppuccin Latte"
-font-family = +calt, +liga, +dlig
+# theme = "Catppuccin Frappe"
+font-feature = +calt, +liga, +dlig
