@@ -36,4 +36,5 @@ vim.opt.smartcase = true
 vim.opt.splitbelow = true
 vim.opt.splitbelow = true
 
-
+vim.opt.timeoutlen = 300
+vim.opt.ttimeoutlen = 10

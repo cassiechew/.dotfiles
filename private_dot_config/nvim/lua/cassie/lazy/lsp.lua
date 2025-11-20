@@ -12,6 +12,8 @@ return {
 		"L3MON4D3/LuaSnip",
 		"saadparwaiz1/cmp_luasnip",
 		"j-hui/fidget.nvim",
+		"onsails/lspkind.nvim",
+		"RRethy/vim-illuminate",
 	},
 	opts = {
 		setup = {
@@ -51,7 +53,7 @@ return {
 
 		vim.keymap.set({ "n", "v" }, "<leader>fm", function()
 			require("conform").format()
-		end)
+		end, { desc = "Format code"})
 
 		local cmp = require("cmp")
 		local cmp_lsp = require("cmp_nvim_lsp")
@@ -62,7 +64,20 @@ return {
 			cmp_lsp.default_capabilities()
 		)
 
-		require("fidget").setup({})
+		require("fidget").setup({
+			progress = {
+				display = {
+					done_icon = "✓", -- icon for completed tasks
+				},
+			},
+			notification = {
+				window = {
+					normal_hl = "NormalFloat",
+					winblend = 0,
+					border = "rounded",
+				},
+			},
+		})
 		require("mason").setup({
 			ui = {
 				icons = {
@@ -121,7 +136,6 @@ return {
 		})
 
 		local cmp_select = { behavior = cmp.SelectBehavior.Select }
-
 		cmp.setup({
 			experimental = {
 				ghost_text = true,
@@ -154,6 +168,13 @@ return {
 			}, {
 				{ name = "buffer" },
 			}),
+			-- formatting = {
+			--     format = lspkind.cmp_format({
+			--         mode = "symbol_text",
+			--         maxwidth = 50,
+			--         ellipsis_char = "…"
+			--     })
+			-- }
 		})
 
 		vim.diagnostic.config({

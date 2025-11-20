@@ -5,31 +5,44 @@ return {
 
 	dependencies = {
 		"nvim-lua/plenary.nvim",
+		{ "nvim-telescope/telescope-fzf-native.nvim", build = "make" },
 		"nvim-telescope/telescope-file-browser.nvim",
 	},
 
 	config = function()
-        local telescope = require("telescope")
+		local telescope = require("telescope")
 		local builtin = require("telescope.builtin")
 		telescope.setup({
 			extensions = {
+				fzf = {
+					fuzzy = true,
+					override_generic_sorter = true,
+					override_file_sorter = true,
+					case_mode = "smart_case",
+				},
 				file_browser = {
-                    initial_mode = "normal",
-                    preview = false,
-                    hijack_netrw = true,
-                    hidden = true,
-                    grouped = true,
-                    respect_gitignore = true,
+--                    sorting_strategy = "ascending",
+					initial_mode = "normal",
+					preview = false,
+					hijack_netrw = true,
+					hidden = true,
+					grouped = true,
+					respect_gitignore = true,
+
 				},
 			},
 		})
 
-        telescope.load_extension("file_browser")
+		telescope.load_extension("fzf")
+		telescope.load_extension("file_browser")
+
 		vim.keymap.set("n", "<leader>pf", builtin.find_files, { desc = "Telescope find files" })
 		vim.keymap.set("n", "<C-p>", builtin.git_files, { desc = "Telescope find git files" })
 		vim.keymap.set("n", "<leader>ps", function()
 			builtin.grep_string({ search = vim.fn.input("Grep > ") })
-		end, { desc = "" })
+		end, { desc = "Grep for string" })
+		vim.keymap.set("n", "<leader>pps", builtin.live_grep, { desc = "Live Grep" })
+
 		vim.keymap.set("n", "<leader>pv", function()
 			local dir = vim.fn.expand("%:p:h") -- open at current file’s directory
 			telescope.extensions.file_browser.file_browser({
