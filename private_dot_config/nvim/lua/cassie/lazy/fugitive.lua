@@ -2,6 +2,7 @@ return {
 	"tpope/vim-fugitive",
 	config = function()
 		local map = vim.keymap.set
+		local opts = { silent = true }
 
 		-- Fugitive status
 		map("n", "<leader>gs", function()

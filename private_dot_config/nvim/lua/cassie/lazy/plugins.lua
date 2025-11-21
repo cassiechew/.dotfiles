@@ -3,15 +3,14 @@ return {
 		"lambdalisue/vim-nerdfont",
 		lazy = false, -- load immediately if needed
 	},
-
-	{
-		"nvim-tree/nvim-web-devicons",
-		opts = {},
-	},
-	{
-		"ryanoasis/vim-devicons",
-		lazy = false, -- also icon related
-	},
+	--{
+	--	"nvim-tree/nvim-web-devicons",
+	--	opts = {},
+	--},
+	--{
+	--	"ryanoasis/vim-devicons",
+	--	lazy = false, -- also icon related
+	--},
 
 	{
 		"nixprime/cpsm",

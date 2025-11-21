@@ -98,3 +98,4 @@ zstyle ':fzf-tab:*' switch-group '<' '>'
 ## also accept and retrigger completion when pressing / when completing cd
 #zstyle ':completion::*:cd:*' fzf-completion-keybindings "${keys[@]}" /:accept:'repeat-fzf-completion'
 #zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+
