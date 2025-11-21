@@ -4,13 +4,18 @@ return {
 	config = function()
 		local builtin = require("mini.files")
 		builtin.setup({
-            options = {
-                use_as_default_explorer = false,
-            }
-        })
+			options = {
+				use_as_default_explorer = false,
+			},
+		})
 
 		vim.keymap.set("n", "<leader>e", function()
-			builtin.open()
+			if builtin.get_explorer_state() then
+				builtin.close()
+			else
+				local file = vim.api.nvim_buf_get_name(0)
+                builtin.open(file, false)
+			end
 		end, { desc = "MiniFiles (current file)" })
 
 		vim.keymap.set("n", "<leader>E", function()

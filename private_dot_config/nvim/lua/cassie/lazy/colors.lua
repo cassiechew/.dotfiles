@@ -30,6 +30,7 @@ return {
 				transparent_background = false,
 
 				integrations = {
+                    overseer = true,
 					cmp = true,
 					gitsigns = true,
 					nvimtree = true,
