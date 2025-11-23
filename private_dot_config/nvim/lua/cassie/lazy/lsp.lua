@@ -53,7 +53,7 @@ return {
 
 		vim.keymap.set({ "n", "v" }, "<leader>fm", function()
 			require("conform").format()
-		end, { desc = "Format code"})
+		end, { desc = "Format code" })
 
 		local cmp = require("cmp")
 		local cmp_lsp = require("cmp_nvim_lsp")
@@ -72,12 +72,27 @@ return {
 			},
 			notification = {
 				window = {
-					normal_hl = "NormalFloat",
+					normal_hl = "Comment",
 					winblend = 0,
-					border = "rounded",
+					--- border = "rounded",
 				},
 			},
+			view = {
+				stack_upwards = true, -- Display notification items from bottom to top
+				align = "message", -- Indent messages longer than a single line
+				reflow = false, -- Reflow (wrap) messages wider than notification window
+				icon_separator = " ", -- Separator between group name and icon
+				group_separator = "---", -- Separator between notification groups
+				-- Highlight group used for group separator
+				group_separator_hl = "Comment",
+				line_margin = 1, -- Spaces to pad both sides of each non-empty line
+				-- How to render notification messages
+				render_message = function(msg, cnt)
+					return cnt == 1 and msg or string.format("(%dx) %s", cnt, msg)
+				end,
+			},
 		})
+
 		require("mason").setup({
 			ui = {
 				icons = {

@@ -4,11 +4,11 @@ return {
 		require("grug-far").setup({})
 
 		vim.keymap.set("n", "<leader>sr", function()
-			require("grug-far").far()
+			require("grug-far").open()
 		end, { desc = "Search & Replace (grug-far)" })
 
 		vim.keymap.set("n", "<leader>sw", function()
-			require("grug-far").far({ search = vim.fn.expand("<cword>") })
+			require("grug-far").open({ search = vim.fn.expand("<cword>") })
 		end, { desc = "Search word under cursor" })
 
 		vim.keymap.set("v", "<leader>sw", function()
@@ -16,11 +16,11 @@ return {
 		end, { desc = "Search visual selection (grug-far)" })
 
 		vim.keymap.set("n", "<leader>sp", function()
-			require("grug-far").far({ cwd = vim.uv.cwd() })
+			require("grug-far").open({ cwd = vim.uv.cwd() })
 		end, { desc = "Search project (grug-far)" })
 
 		vim.keymap.set("n", "<leader>sf", function()
-			require("grug-far").far({ paths = vim.fn.expand("%") })
+			require("grug-far").open({ paths = vim.fn.expand("%") })
 		end, { desc = "Search in current file" })
 
 		vim.keymap.set("n", "<leader>ss", function()
@@ -32,3 +32,4 @@ return {
 		end, { desc = "Replace using last settings" })
 	end,
 }
+

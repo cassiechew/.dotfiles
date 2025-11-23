@@ -38,6 +38,7 @@ return {
 		},
 		explorer = { enabled = false },
 		indent = { enabled = false },
+        image = { enabled = false },
 		input = { enabled = false },
 		picker = { enabled = false },
 		notifier = { enabled = false },

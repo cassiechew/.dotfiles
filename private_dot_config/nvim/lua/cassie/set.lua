@@ -21,6 +21,9 @@ vim.opt.hlsearch = false
 vim.opt.incsearch = true
 
 vim.opt.termguicolors = true
+vim.api.nvim_set_hl(0, "Cursor", { fg = "#FF0066", bg = "#FFFFFF" })
+vim.api.nvim_set_hl(0, "Cursor2", { fg = "#FF0066", bg = "#1e1e1e" })
+vim.o.guicursor = "n-v-c:block-Cursor,i-ci-ve:ver25-Cursor2"
 
 vim.opt.scrolloff = 8
 vim.opt.signcolumn = "yes"

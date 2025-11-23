@@ -6,6 +6,11 @@ local function is_daytime()
 end
 
 return {
+	-- {
+	-- 	"scottmckendry/cyberdream.nvim",
+	-- 	lazy = false,
+	-- 	priority = 1000,
+	-- },
 	{
 		"catppuccin/nvim",
 		name = "catppuccin",
@@ -26,15 +31,16 @@ return {
 					dark = "frappe",
 				},
 
-				-- set this to true if you want fully transparent editor bg
 				transparent_background = false,
 
 				integrations = {
-                    overseer = true,
+                    noice = true,
+					overseer = true,
 					cmp = true,
 					gitsigns = true,
 					nvimtree = true,
 					telescope = true,
+                    notify = true,
 					fidget = true,
 					mini = {
 						enabled = true,
@@ -55,7 +61,6 @@ return {
 					},
 				},
 
-				-- optional: make just floats transparent
 				custom_highlights = function(colors)
 					return {
 						-- NormalFloat = { bg = "NONE" },
@@ -65,6 +70,9 @@ return {
 			})
 
 			vim.cmd.colorscheme("catppuccin")
+			vim.api.nvim_set_hl(0, "Cursor", { bg = "#FF0066", fg = "#FFFFFF" })
+			vim.api.nvim_set_hl(0, "Cursor2", { bg = "#FF0066", fg = "#1e1e1e" })
+			vim.o.guicursor = "n-v-c:block-Cursor,i-ci-ve:ver25-Cursor2"
 		end,
 	},
 }
