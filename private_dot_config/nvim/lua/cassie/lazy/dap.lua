@@ -12,7 +12,7 @@ return {
                 desc = "DAP toggle breakpoint"
             },
             {
-                "<leader>ds",
+                "<leader>dn",
                 function ()
                    require("dap").new() 
                 end,
