@@ -49,6 +49,10 @@ eval "$(test -x $HERMIT_ROOT_BIN && $HERMIT_ROOT_BIN shell-hooks --print --zsh)"
 eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/id_ed25519
 
+alias v=vim
+alias t=tmux
+alias k=kubectl
+
 # pnpm
 export PNPM_HOME="/home/cassiechew/.local/share/pnpm"
 case ":$PATH:" in
@@ -81,21 +85,4 @@ zstyle ':fzf-tab:complete:cd:*' fzf-preview 'eza -1 --color=always $realpath'
 zstyle ':fzf-tab:*' fzf-flags --color=fg:1,fg+:2 --bind=tab:accept
 # switch group using `<` and `>`
 zstyle ':fzf-tab:*' switch-group '<' '>'
-
-#source /usr/share/doc/fzf/examples/key-bindings.zsh
-#source /usr/share/doc/fzf/examples/completion.zsh
-#source /home/cassiechew/projects/fzf-tab-completion/zsh/fzf-zsh-completion.sh
-#bindkey '^I' fzf_completion
-#zstyle ':completion:*' fzf-search-display true
-#zstyle ':completion::*:git::git,add,*' fzf-completion-opts --preview='git -c color.status=always status --short'
-#zstyle ':completion:*' fzf-completion-secondary-color #FF0066
-#keys=(
-#    ctrl-r:'repeat-fzf-completion'
-#    right:accept:'repeat-fzf-completion'
-#    alt-enter:accept:'zle accept-line'
-#)
-#zstyle ':completion:*' fzf-completion-keybindings "${keys[@]}"
-## also accept and retrigger completion when pressing / when completing cd
-#zstyle ':completion::*:cd:*' fzf-completion-keybindings "${keys[@]}" /:accept:'repeat-fzf-completion'
-#zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 
