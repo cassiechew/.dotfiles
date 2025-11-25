@@ -36,7 +36,7 @@ FONT_REPO_DIR="$HOME/.local/share/fonts-repo"
 # --------------------------
 if [ ! -d "$FONT_REPO_DIR/.git" ]; then
   echo "[chezmoi] Cloning private fonts repo…"
-  git clone git@github.com:YOU/fonts-private.git "$FONT_REPO_DIR"
+  git clone git@github.com:cassiechew/fonts.git "$FONT_REPO_DIR"
 else
   echo "[chezmoi] Updating private fonts repo…"
   git -C "$FONT_REPO_DIR" pull --ff-only
