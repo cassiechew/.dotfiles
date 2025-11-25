@@ -1,20 +1,75 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-# Runs whenever private_fonts/* changes
+echo "[chezmoi] Installing private fonts…"
 
-{{ if eq .chezmoi.os "linux" -}}
-mkdir -p "$HOME/.local/share/fonts"
-#cp -f "{{ .chezmoi.sourceDir }}/private_fonts/"*.ttf "$HOME/.local/share/fonts/"
-tar -xzf "{{ .chezmoi.sourceDir }}/literal_private_fonts/fonts.tar.gz" \
-    -C "$HOME/.local/share/fonts"
-fc-cache -fv
-{{ end -}}
+# --------------------------
+# Detect OS
+# --------------------------
+OS="$(uname -s)"
 
-{{ if eq .chezmoi.os "darwin" -}}
-echo "Installing fonts on macOS..."
-#cp -f "{{ .chezmoi.sourceDir }}/private_fonts/"*.ttf "$HOME/Library/Fonts/"
-tar -xzf "{{ .chezmoi.sourceDir }}/literal_private_fonts/fonts.tar.gz" \
-    -C "~/Library/Fonts"
-{{ end -}}
+case "$OS" in
+  Darwin)
+    PLATFORM="macos"
+    FONT_DIR="$HOME/Library/Fonts"
+    ;;
+  Linux)
+    PLATFORM="linux"
+    FONT_DIR="$HOME/.local/share/fonts"
+    ;;
+  *)
+    echo "Unsupported OS: $OS"
+    exit 1
+    ;;
+esac
+
+echo "[chezmoi] Detected OS: $PLATFORM"
+echo "[chezmoi] Installing to: $FONT_DIR"
+
+# --------------------------
+# Where your font repo lives locally
+# --------------------------
+FONT_REPO_DIR="$HOME/.local/share/fonts-repo"
+
+# --------------------------
+# Clone or pull repo
+# --------------------------
+if [ ! -d "$FONT_REPO_DIR/.git" ]; then
+  echo "[chezmoi] Cloning private fonts repo…"
+  git clone git@github.com:YOU/fonts-private.git "$FONT_REPO_DIR"
+else
+  echo "[chezmoi] Updating private fonts repo…"
+  git -C "$FONT_REPO_DIR" pull --ff-only
+fi
+
+# --------------------------
+# Install fonts
+# --------------------------
+mkdir -p "$FONT_DIR"
+
+echo "[chezmoi] Copying fonts to system directory…"
+
+# Sync files, remove deleted files, preserve permissions
+rsync -av --delete "$FONT_REPO_DIR"/ "$FONT_DIR"/
+
+# --------------------------
+# Linux: rebuild font cache
+# --------------------------
+if [ "$PLATFORM" = "linux" ]; then
+  if command -v fc-cache >/dev/null 2>&1; then
+    echo "[chezmoi] Rebuilding font cache (linux)…"
+    fc-cache -f "$FONT_DIR"
+  else
+    echo "[chezmoi] fc-cache not found; skipping cache rebuild."
+  fi
+fi
+
+# --------------------------
+# macOS: no cache step needed
+# --------------------------
+if [ "$PLATFORM" = "macos" ]; then
+  echo "[chezmoi] macOS detected — no font cache rebuild needed."
+fi
+
+echo "[chezmoi] Fonts installed successfully."
 
