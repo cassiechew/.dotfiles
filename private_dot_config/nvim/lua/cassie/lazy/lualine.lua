@@ -247,10 +247,10 @@ return {
 					padding = { left = 1, right = 1 },
 				},
 			},
-			lualine_y = {},
-			lualine_z = {},
-			--lualine_y = { "progress" }, -- e.g. 41%
-			--lualine_z = { "location" }, -- line:col
+			-- lualine_y = {},
+			-- lualine_z = {},
+			lualine_y = { "progress" }, -- e.g. 41%
+			lualine_z = { "location" }, -- line:col
 		}
 
 		return opts

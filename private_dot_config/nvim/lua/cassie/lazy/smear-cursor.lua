@@ -3,7 +3,7 @@ return {
 	opts = {
 		cursor_color = "#ff0066",
         vertical_bar_cursor_insert_mode = true,
-		particles_enabled = true,
+		particles_enabled = false,
 		stiffness = 0.5,
 		trailing_stiffness = 0.2,
 		trailing_exponent = 5,

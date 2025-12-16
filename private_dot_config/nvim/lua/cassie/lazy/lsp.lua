@@ -4,6 +4,7 @@ return {
 		"stevearc/conform.nvim",
 		"williamboman/mason.nvim",
 		"williamboman/mason-lspconfig.nvim",
+        "WhoIsSethDaniel/mason-tool-installer.nvim",
 		"hrsh7th/cmp-nvim-lsp",
 		"hrsh7th/cmp-buffer",
 		"hrsh7th/cmp-path",
@@ -48,6 +49,8 @@ return {
 				heex = { "mix" },
 				surface = { "mix" },
 				lua = { "stylua" },
+                graphql = { "prettier"},
+                typescript = { "prettier" },
 			},
 		})
 
@@ -109,6 +112,7 @@ return {
 				"rust_analyzer",
 				"gopls",
 				"elixirls",
+                "vtsls",
 			},
 			handlers = {
 				function(server_name) -- default handler (optional)
@@ -149,6 +153,17 @@ return {
 				end,
 			},
 		})
+
+        require('mason-tool-installer').setup {
+            ensure_installed = {
+
+                { 'golangci-lint', condition = function() return vim.fn.executable('go') == 1  end },
+                { 'gofumpt', condition = function() return vim.fn.executable('go') == 1  end },
+                { 'goimports', condition = function() return vim.fn.executable('go') == 1  end },
+
+                { 'stylua', condition = function() return vim.fn.executable('lua') == 1  end },
+            }
+        }
 
 		local cmp_select = { behavior = cmp.SelectBehavior.Select }
 		cmp.setup({
