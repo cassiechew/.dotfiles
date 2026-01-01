@@ -6,12 +6,14 @@
 
 [user]
 	name = Cassie Chew
-	email = me@cassie.id
-	signingkey = B1579E576779424E
+    email = cassie.chew@playhq.com
+    signingkey = 0E704ADAEC60E663
 [color]
 	ui = true
+[diff]
+    external = difft
 [core]
-    pager = delta
+#    pager = delta
     editor = vim
 [interactive]
     diffFilter = delta --color-only
@@ -28,7 +30,7 @@
 [init]
 	defaultBranch = main
 [pull]
-	rebase = true
+    rebase = false
 [alias]
 	co = checkout
 	br = branch
@@ -45,3 +47,9 @@
     lg1-specific = log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(auto)%d%C(reset)'
     lg2-specific = log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold cyan)%aD%C(reset) %C(bold green)(%ar)%C(reset)%C(auto)%d%C(reset)%n''          %C(white)%s%C(reset) %C(dim white)- %an%C(reset)'
     lg3-specific = log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold cyan)%aD%C(reset) %C(bold green)(%ar)%C(reset) %C(bold cyan)(committed: %cD)%C(reset) %C(auto)%d%C(reset)%n''          %C(white)%s%C(reset)%n''          %C(dim white)- %an <%ae> %C(reset) %C(dim white)(committer: %cn <%ce>)%C(reset)'
+
+    # Difftastic aliases, so `git dlog` is `git log` with difftastic and so on.
+    dlog = -c diff.external=difft log --ext-diff
+    dshow = -c diff.external=difft show --ext-diff
+# [url "ssh://git@github.com/"]
+#     insteadOf = https://github.com/

@@ -1,0 +1,10 @@
+# Test config for task taskrunner only
+
+[settings]
+menu_width = 60%
+menu_height = 50%
+
+[taskrunner:task]
+enabled = true
+
+# vim: ft=dosini ts=2 sw=2 et

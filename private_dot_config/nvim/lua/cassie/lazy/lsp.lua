@@ -160,7 +160,6 @@ return {
                 { 'golangci-lint', condition = function() return vim.fn.executable('go') == 1  end },
                 { 'gofumpt', condition = function() return vim.fn.executable('go') == 1  end },
                 { 'goimports', condition = function() return vim.fn.executable('go') == 1  end },
-
                 { 'stylua', condition = function() return vim.fn.executable('lua') == 1  end },
             }
         }

@@ -1,0 +1,64 @@
+# Test config with new [type:name] format
+
+[settings]
+icon_running = ●
+icon_stopped = ○
+menu_width = 60%
+menu_height = 50%
+popup_width = 90%
+popup_height = 90%
+cache_ttl = 60
+primary_key = enter
+secondary_key = tab
+
+# Apps
+[app:lazygit]
+cmd = lazygit
+desc = prim = window, sec = popup
+primary_action = window
+secondary_action = popup
+status = n=$(git status -s 2>/dev/null | wc -l | tr -d ' '); [[ $n -gt 0 ]] && echo "($n changed)"
+
+[app:htop]
+cmd = htop
+desc = Process viewer
+
+# Submenu
+[menu:system]
+desc = System tools
+status = echo "load: $(cut -d' ' -f1 /proc/loadavg)"
+
+[app:system/btop]
+cmd = btop
+desc = Task manager
+
+[app:system/ncdu]
+cmd = ncdu
+desc = Disk usage analyzer
+
+# Directory browser
+[dirbrowser:config]
+directory = ~/.config
+depth = 2
+sort = modified-folder
+cache_ttl = 300
+
+[taskrunner]
+icon_running = 
+icon_success = 
+icon_failed = 
+
+# Task runners (all enabled for testing)
+[taskrunner:just]
+enabled = true
+icon = 🤖
+
+[taskrunner:npm]
+enabled = true
+icon = 📦
+
+[taskrunner:task]
+enabled = true
+icon = 📋
+
+# vim: ft=dosini ts=2 sw=2 et

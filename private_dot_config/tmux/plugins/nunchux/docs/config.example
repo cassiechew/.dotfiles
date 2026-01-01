@@ -1,0 +1,250 @@
+# Nunchux Configuration
+#
+# Config locations (searched in order):
+#   1. .nunchuxrc in current dir (or any parent, like .gitignore)
+#   2. NUNCHUX_RC_FILE environment variable
+#   3. ~/.config/nunchux/config
+#
+# Config uses [type:name] section format:
+#   [app:name]        - Regular apps
+#   [menu:name]       - Submenus
+#   [dirbrowser:name] - Directory browsers
+#   [taskrunner:name] - Task runner integrations
+
+[settings]
+icon_running = ●
+icon_stopped = ○
+menu_width = 60%
+menu_height = 50%
+popup_width = 90%
+popup_height = 90%
+fzf_prompt =
+fzf_pointer = ▶
+fzf_border = rounded
+label = nunchux
+fzf_colors = fg+:white:bold,bg+:-1,hl:cyan,hl+:cyan:bold,pointer:cyan,marker:green,header:gray,border:gray
+cache_ttl = 60
+
+# A few words about cache_ttl
+# ----------------------------
+# Nunchux caches menus to make them open instantly. When you open a menu,
+# you see the cached version right away while fresh data loads in the background.
+# Once ready, the menu hot-swaps to show updated info.
+#
+# cache_ttl controls how long (in seconds) a cache is considered "fresh enough"
+# to show instantly. After this time, the menu builds from scratch (with the
+# nice streaming effect where items appear one by one).
+#
+# - In [settings]: sets the default for main menu and all submenus (default: 60)
+# - In a [menu:name] section: overrides just that submenu
+# - In a [dirbrowser:name]: controls that browser (default: 300 for dir browsers)
+#
+# Set to 0 to disable caching entirely for that menu.
+
+# Actions
+# -------
+# Control what happens when you press primary_key (Enter) or secondary_key (Ctrl-O).
+#
+# Available actions:
+#   popup             - Open in a tmux popup overlay
+#   window            - Open in a new tmux window with focus
+#   background_window - Open in a new tmux window, stay in current pane
+#
+# Default actions vary by item type:
+#   Apps:        popup / window
+#   Taskrunners: window / background_window
+#   Dirbrowsers: popup / window
+#
+# You can set global defaults here, or override per-item with primary_action/secondary_action.
+#
+# primary_action = popup
+# secondary_action = window
+# exclude_patterns (for directory browsers)
+
+# ------------------------------------------
+# Comma-separated list of patterns to exclude from directory browsers.
+# - Patterns starting with * are filename globs (e.g., *.log, *.db)
+# - Other patterns exclude both directories and files with that name
+#
+# Default excludes common non-text files: .git, node_modules, cache dirs,
+# databases, images, fonts, lock files, etc.
+#
+# Example: exclude_patterns = .git, node_modules, *.log, *.tmp, build
+
+# Ordering
+# --------
+# By default, items appear in the menu in the order they're defined in this
+# config file. You can override this with the 'order' property on any item.
+#
+# Lower order values appear first. Items without an explicit order are sorted
+# by their position in the config file (after items with explicit orders).
+#
+# Example:
+#   [app:htop]
+#   order = 10
+#
+#   [app:lazygit]
+#   order = 5    # This will appear before htop despite being defined after
+
+# Apps
+# ----
+# Use [app:name] sections. The name becomes the window name.
+#
+# Available options:
+#   cmd              = command to run (required)
+#   desc             = description shown in menu
+#   width            = popup width (e.g., 80 or 80%)
+#   height           = popup height
+#   status           = shell command for dynamic status
+#   status_script    = path to script for complex status
+#   on_exit          = command to run after app exits
+#   primary_action   = override primary action (popup/window/background_window)
+#   secondary_action = override secondary action
+#   order            = explicit sort order (lower = first)
+#
+# Variables available in cmd and on_exit:
+#   {pane_id}     = parent tmux pane ID
+#   {tmp}         = fresh temp file path
+#   {dir}         = starting directory
+
+[app:btop]
+cmd = btop
+status = load=$(cut -d' ' -f1 /proc/loadavg); \
+         ram=$(awk '/MemAvailable/{printf "%.0f", $2/1024/1024}' /proc/meminfo); \
+         disk=$(df /home --output=avail 2>/dev/null | tail -1 | awk '{printf "%.0f", $1/1024/1024}'); \
+         echo "load: $load | ram: ${ram}GB free | /home: ${disk}GB free"
+
+[app:htop]
+cmd = htop
+desc = Process viewer
+
+[app:git]
+cmd = lazygit
+status = n=$(git status -s 2>/dev/null | wc -l | tr -d ' '); [[ $n -gt 0 ]] && echo "($n changed)"
+
+[app:docker]
+cmd = lazydocker
+status = n=$(docker ps -q 2>/dev/null | wc -l | tr -d ' '); [[ $n -gt 0 ]] && echo "($n running)"
+
+# [app:k9s]
+# cmd = k9s
+# status = ctx=$(kubectl config current-context 2>/dev/null); [[ -n "$ctx" ]] && echo "($ctx)"
+
+# [app:notes]
+# cmd = nvim ~/notes
+# width = 80
+# height = 60
+# status = mins=$(( ($(date +%s) - $(stat -c %Y ~/notes 2>/dev/null || echo 0)) / 60 )); [[ $mins -lt 60 ]] && echo "(${mins}m ago)" || echo "($(($mins/60))h ago)"
+
+# Submenus
+# --------
+# Use [menu:name] for the parent and [app:name/child] for children.
+# The parent shows in the main menu; selecting it opens the submenu.
+#
+# Available options:
+#   desc      = description shown in menu
+#   status    = shell command for dynamic status
+#   cache_ttl = cache duration for submenu
+#   order     = explicit sort order (lower = first)
+#
+# Prerequisites for this example:
+#   btop       - System monitor          (https://github.com/aristocratos/btop)
+#   impala     - WiFi manager TUI        (https://github.com/pythops/impala)
+#   bluetuith  - Bluetooth manager TUI   (https://github.com/darkhz/bluetuith)
+#   bandwhich  - Bandwidth by process    (https://github.com/imsnif/bandwhich)
+#   duf        - Disk usage overview     (https://github.com/muesli/duf)
+#   ncdu       - Disk usage analyzer     (https://dev.yorhel.nl/ncdu)
+
+# [menu:system]
+# status = load=$(cut -d' ' -f1 /proc/loadavg); \
+#          ram=$(awk '/MemAvailable/{printf "%.0f", $2/1024/1024}' /proc/meminfo); \
+#          echo "load: $load | ${ram}GB free"
+#
+# [app:system/btop]
+# cmd = btop
+# desc = Task manager
+#
+# [app:system/impala]
+# cmd = impala
+# desc = WiFi manager
+#
+# [app:system/bluetuith]
+# cmd = bluetuith
+# desc = Bluetooth manager
+#
+# [app:system/bandwhich]
+# cmd = sudo bandwhich
+# desc = Bandwidth by process
+#
+# [app:system/duf]
+# cmd = duf -only local | less -R
+# desc = Disk usage overview
+# width = 60
+# height = 30
+#
+# [app:system/ncdu]
+# cmd = ncdu
+# desc = Disk usage analyzer
+
+# Directory browsers
+# ------------------
+# Use [dirbrowser:name] instead of [app:name] with a cmd.
+# Selected files open in $VISUAL, $EDITOR, or nvim (in that order).
+#
+# Available options:
+#   directory        = path to browse (required)
+#   depth            = how many levels deep to search (default: 1)
+#   sort             = sorting mode: "modified", "modified-folder", or "alphabetical"
+#   sort_direction   = "ascending" or "descending" (default: descending)
+#   cache_ttl        = cache duration in seconds (default: 300)
+#   glob             = filter files by pattern (e.g., "*.conf")
+#   width            = popup width
+#   height           = popup height
+#   primary_action   = override primary action (default: popup)
+#   secondary_action = override secondary action (default: window)
+#   order            = explicit sort order (lower = first)
+#
+# Sort modes:
+#   modified        = newest files first
+#   modified-folder = folders grouped by most recent file, then files by recency
+#   alphabetical    = sorted by folder/filename
+
+# [dirbrowser:configs]
+# directory = ~/.config
+# depth = 2
+# sort = modified-folder
+# cache_ttl = 300
+
+# Task runners
+# ------------
+# Use [taskrunner:name] to enable task runner integrations.
+# Task runners are DISABLED by default - you must explicitly enable them.
+# Tasks run in dedicated tmux windows with status indicators.
+#
+# Available options:
+#   enabled          = true/false (default: false)
+#   icon             = emoji icon shown in divider
+#   label            = custom label (default: runner name)
+#   primary_action   = override primary action (default: window)
+#   secondary_action = override secondary action (default: background_window)
+#   order            = explicit sort order (lower = first)
+#
+# By default: Enter runs task and switches to its window,
+#             Ctrl-O runs task in background (stay in current pane)
+#
+# Available runners:
+#   just - shows recipes from justfile
+#   npm  - shows scripts from package.json
+#   task - shows tasks from Taskfile.yml
+
+# [taskrunner:just]
+# enabled = true
+# icon = 🤖
+#
+# [taskrunner:npm]
+# enabled = true
+# icon = 📦
+#
+# [taskrunner:task]
+# enabled = true
+# icon = ✓
