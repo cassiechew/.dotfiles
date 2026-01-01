@@ -31,3 +31,16 @@ vim.keymap.set("n", "vv", "<C-w>v", { noremap = true, silent = true, desc = "New
 vim.keymap.set('n', '<leader>rn', ':set relativenumber!<CR>', { desc = 'Toggle relative numbers' })
 vim.keymap.set('n', '<leader>nn', ':set number!<CR>', { desc = 'Toggle line numbers' })
 
+-- Auto-switch based on mode
+vim.api.nvim_create_autocmd({ "InsertEnter" }, {
+  callback = function()
+    vim.opt.relativenumber = false
+  end,
+})
+
+vim.api.nvim_create_autocmd({ "InsertLeave" }, {
+  callback = function()
+    vim.opt.relativenumber = true
+  end,
+})
+
