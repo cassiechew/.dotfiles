@@ -26,3 +26,8 @@ vim.keymap.set("n", "<C-H>", "<C-W><C-H>")
 -- vv to generate new vertical split
 --nnore map <silent> vv <C-w>v
 vim.keymap.set("n", "vv", "<C-w>v", { noremap = true, silent = true, desc = "New split pane" })
+
+-- Add keybindings to toggle
+vim.keymap.set('n', '<leader>rn', ':set relativenumber!<CR>', { desc = 'Toggle relative numbers' })
+vim.keymap.set('n', '<leader>nn', ':set number!<CR>', { desc = 'Toggle line numbers' })
+
