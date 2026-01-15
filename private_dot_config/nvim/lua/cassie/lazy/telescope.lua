@@ -13,6 +13,15 @@ return {
 		local telescope = require("telescope")
 		local builtin = require("telescope.builtin")
 		telescope.setup({
+			defaults = {
+				layout_strategy = "center",
+				layout_config = {
+					anchor = "S",
+					height = 0.40,
+					width = 0.99,
+					preview_cutoff = 1,
+				},
+			},
 			extensions = {
 				fzf = {
 					fuzzy = true,
@@ -21,14 +30,13 @@ return {
 					case_mode = "smart_case",
 				},
 				file_browser = {
---                    sorting_strategy = "ascending",
+					--                    sorting_strategy = "ascending",
 					initial_mode = "normal",
 					preview = false,
 					hijack_netrw = true,
 					hidden = true,
 					grouped = true,
 					respect_gitignore = true,
-
 				},
 			},
 		})

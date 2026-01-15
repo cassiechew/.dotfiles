@@ -188,6 +188,20 @@ return {
 					end
 				end,
 				["<C-Space>"] = cmp.mapping.complete(),
+                ["<Right>"] = function(fallback)
+					if cmp.visible() then
+						cmp.confirm({ select = true })
+					else
+						fallback()
+					end
+				end,
+                ["<S-CR>"] = function(fallback)
+					if cmp.visible() then
+						cmp.confirm({ select = true })
+					else
+						fallback()
+					end
+				end,
 			}),
 			sources = cmp.config.sources({
 				{ name = "copilot", group_index = 2 },

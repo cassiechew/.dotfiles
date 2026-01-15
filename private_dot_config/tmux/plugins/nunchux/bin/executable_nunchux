@@ -64,6 +64,9 @@ trap 'show_error_screen "$LINENO" "$BASH_COMMAND"' ERR
 # Determine script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Clear shortcut display state (set via --show-shortcuts flag only)
+unset SHOW_SHORTCUTS
+
 # Load core library (which loads all other libs)
 source "$SCRIPT_DIR/../lib/core.sh"
 
@@ -76,10 +79,18 @@ load_modules
 # Check for old config format and offer migration
 check_and_migrate_config || exit 0
 
+# Check for old order format and offer migration
+check_and_migrate_order_config || exit 0
+
 # Load and parse config
 config_file=$(get_config_file)
 if [[ -n "$config_file" ]]; then
   parse_config "$config_file"
+fi
+
+# Initialize help display state from config (can be toggled with ctrl-/)
+if [[ "${SHOW_HELP:-true}" == "true" ]]; then
+  SHOW_SHORTCUTS=1
 fi
 
 # Show invalid keybinding error
@@ -129,6 +140,111 @@ invalid_keys=$(validate_keybindings) || show_invalid_key_error "$invalid_keys"
 
 # Load enabled taskrunners
 load_taskrunners
+
+# Show invalid shortcut error
+show_invalid_shortcut_error() {
+  local errors="$1"
+  clear
+
+  center() {
+    local text="$1"
+    local width=$(tput cols)
+    local plain=$(echo -e "$text" | sed 's/\x1b\[[0-9;]*m//g')
+    local text_len=${#plain}
+    local padding=$(((width - text_len) / 2))
+    [[ $padding -gt 0 ]] && printf "%*s" $padding ""
+    echo -e "$text"
+  }
+
+  local height=$(tput lines)
+  local top_padding=$(((height - 24) / 2))
+  for ((i = 0; i < top_padding; i++)); do echo; done
+
+  center "\033[1;33mChuck Norris doesn't need shortcuts\033[0m"
+  echo ""
+  center "\033[90mbut you might want to fix yours...\033[0m"
+  echo ""
+  while IFS= read -r line; do
+    center "$line"
+  done <<<"$NUNCHUCKS_ART"
+  echo ""
+  echo ""
+  center "\033[1;31mInvalid shortcuts:\033[0m"
+  echo ""
+  while IFS= read -r err; do
+    [[ -n "$err" ]] && center "\033[90m$err\033[0m"
+  done <<<"$errors"
+  echo ""
+  center "\033[90mReserved keys: enter, esc, ctrl-x, /, $PRIMARY_KEY, $SECONDARY_KEY\033[0m"
+  echo ""
+  center "\033[90mpress any key\033[0m"
+  read -n 1 -s
+  exit 0
+}
+
+# Register all shortcuts after config is fully parsed
+register_all_shortcuts() {
+  local errors=""
+
+  # Helper to register a single shortcut and collect errors
+  _try_register() {
+    local key="$1" item="$2" registry_key="$3"
+
+    [[ -z "$key" ]] && return 0
+
+    if ! validate_shortcut "$key" "$item" 2>/dev/null; then
+      errors+="$key ($item) - "
+      if ! is_valid_fzf_key "$key"; then
+        errors+="invalid fzf key"
+      else
+        errors+="reserved key"
+      fi
+      errors+=$'\n'
+    elif ! register_shortcut "$key" "$registry_key" 2>/dev/null; then
+      errors+="$key ($item) - duplicate of ${SHORTCUT_REGISTRY[$key]}"$'\n'
+    fi
+  }
+
+  local name
+  for name in "${APP_ORDER[@]}"; do
+    _try_register "${APP_SHORTCUT[$name]:-}" "app:$name" "$name"
+  done
+
+  for name in "${MENU_ORDER[@]}"; do
+    _try_register "${MENU_SHORTCUT[$name]:-}" "menu:$name" "menu:$name"
+  done
+
+  for name in "${DIRBROWSE_ORDER[@]}"; do
+    _try_register "${DIRBROWSE_SHORTCUT[$name]:-}" "dirbrowser:$name" "dirbrowser:$name"
+  done
+
+  unset -f _try_register
+
+  if [[ -n "$errors" ]]; then
+    show_invalid_shortcut_error "$errors"
+  fi
+}
+
+register_all_shortcuts
+
+# Launch an item by shortcut
+launch_by_shortcut() {
+  local item="$1"
+
+  if [[ "$item" == menu:* ]]; then
+    # Enter submenu
+    CURRENT_MENU="${item#menu:}"
+    launch
+  elif [[ "$item" == dirbrowser:* ]]; then
+    # Enter dirbrowser
+    launch_dirbrowse "${item#dirbrowser:}"
+  else
+    # Launch app with primary action
+    local cmd="${APP_CMD[$item]:-}"
+    [[ -z "$cmd" ]] && { echo "Unknown item: $item" >&2; exit 1; }
+    app_launch "$item" "" "$cmd" "${APP_WIDTH[$item]:-}" "${APP_HEIGHT[$item]:-}" "${APP_ON_EXIT[$item]:-}"
+  fi
+}
 
 # Check if any items are configured
 has_config() {
@@ -310,11 +426,16 @@ launch() {
   local reload_cmd="$script_path --menu"
   local primary_display="${PRIMARY_KEY^}"
   local secondary_display="${SECONDARY_KEY^}"
-  local header="$primary_display: primary_action | $secondary_display: secondary_action | Ctrl-X: kill"
+
+  # Build header (only shown when SHOW_SHORTCUTS is set)
+  local header=""
+  if [[ -n "$SHOW_SHORTCUTS" ]]; then
+    header="$primary_display: primary_action | $secondary_display: secondary_action | Ctrl-X: kill"
+    [[ -n "$CURRENT_MENU" ]] && header="$header | Esc: back"
+  fi
 
   if [[ -n "$CURRENT_MENU" ]]; then
     reload_cmd="$script_path --menu --submenu $CURRENT_MENU"
-    header="$primary_display: primary_action | $secondary_display: secondary_action | Ctrl-X: kill | Esc: back"
   fi
 
   # Cache settings
@@ -335,10 +456,30 @@ launch() {
   build_fzf_opts fzf_opts "$header"
   fzf_opts+=(--bind="ctrl-x:reload($script_path --kill {2} >/dev/null 2>&1; $reload_cmd)")
 
-  # Run with cache if valid
+  # Add shortcut bindings
+  local shortcut_binds=()
+  build_shortcut_binds shortcut_binds "$script_path"
+  fzf_opts+=("${shortcut_binds[@]}")
+
+  # Add ctrl-/ toggle for shortcuts display
+  local toggle_cmd="$script_path"
+  [[ -n "$CURRENT_MENU" ]] && toggle_cmd="$toggle_cmd --submenu $CURRENT_MENU"
+
+  if [[ -n "$SHOW_SHORTCUTS" ]]; then
+    fzf_opts+=(--bind="ctrl-/:become($toggle_cmd --hide-shortcuts)")
+  else
+    fzf_opts+=(--bind="ctrl-/:become($toggle_cmd --show-shortcuts)")
+  fi
+
+  # Run with cache if valid (but skip cache when showing shortcuts to avoid hot-swap issues)
   local fzf_exit=0
   local fzf_stderr="/tmp/nunchux-fzf-stderr-$$"
-  if is_cache_valid "$cache_file" "$cache_ttl"; then
+  if [[ -n "$SHOW_SHORTCUTS" ]]; then
+    # When showing shortcuts, build fresh each time (no caching)
+    selection=$(build_menu | add_shortcut_prefixes | fzf "${fzf_opts[@]}" 2>"$fzf_stderr") || fzf_exit=$?
+  elif is_cache_valid "$cache_file" "$cache_ttl"; then
+    # Clean up any leftover socket from previous invocation (e.g., if fzf was replaced via become())
+    rm -f "$socket" 2>/dev/null || true
     refresh_cache "$cache_file" "$socket" build_menu &
     local refresh_pid=$!
     selection=$(cat "$cache_file" | fzf "${fzf_opts[@]}" --listen "$socket" 2>"$fzf_stderr") || fzf_exit=$?
@@ -395,12 +536,13 @@ launch() {
   fi
 
   # Extract fields (tab-separated)
+  # Format: display \t shortcut \t name \t cmd \t width \t height \t on_exit
   local name cmd width height on_exit
-  name=$(echo "$selected_line" | cut -f2)
-  cmd=$(echo "$selected_line" | cut -f3)
-  width=$(echo "$selected_line" | cut -f4)
-  height=$(echo "$selected_line" | cut -f5)
-  on_exit=$(echo "$selected_line" | cut -f6)
+  name=$(echo "$selected_line" | cut -f3)
+  cmd=$(echo "$selected_line" | cut -f4)
+  width=$(echo "$selected_line" | cut -f5)
+  height=$(echo "$selected_line" | cut -f6)
+  on_exit=$(echo "$selected_line" | cut -f7)
 
   if [[ -z "$name" ]]; then
     return 0
@@ -562,6 +704,8 @@ main() {
     case "${1:-}" in
     menu_width) echo "$MENU_WIDTH" ;;
     menu_height) echo "$MENU_HEIGHT" ;;
+    max_menu_width) echo "$MAX_MENU_WIDTH" ;;
+    max_menu_height) echo "$MAX_MENU_HEIGHT" ;;
     popup_width) echo "$APP_POPUP_WIDTH" ;;
     popup_height) echo "$APP_POPUP_HEIGHT" ;;
     *)
@@ -569,6 +713,31 @@ main() {
       exit 1
       ;;
     esac
+    ;;
+  --popup)
+    # Launch self in a tmux popup with clamped dimensions
+    local width="$MENU_WIDTH" height="$MENU_HEIGHT"
+
+    # Clamp to max if configured
+    if [[ "$width" == *% && -n "${MAX_MENU_WIDTH:-}" ]]; then
+      local term_cols pct_width
+      term_cols=$(tmux display-message -p '#{window_width}')
+      pct_width=$((term_cols * ${width%\%} / 100))
+      ((pct_width > MAX_MENU_WIDTH)) && width="$MAX_MENU_WIDTH"
+    fi
+    if [[ "$height" == *% && -n "${MAX_MENU_HEIGHT:-}" ]]; then
+      local term_lines pct_height
+      term_lines=$(tmux display-message -p '#{window_height}')
+      pct_height=$((term_lines * ${height%\%} / 100))
+      ((pct_height > MAX_MENU_HEIGHT)) && height="$MAX_MENU_HEIGHT"
+    fi
+
+    local script_path
+    script_path=$(realpath "${BASH_SOURCE[0]}")
+    local dir
+    dir=$(tmux display-message -p '#{pane_current_path}')
+
+    exec tmux display-popup -E -B -d "$dir" -w "$width" -h "$height" "$script_path"
     ;;
   --submenu)
     shift
@@ -578,6 +747,35 @@ main() {
       echo "Press any key to close..."
       read -n 1
     fi
+    ;;
+  --show-shortcuts)
+    SHOW_SHORTCUTS=1
+    export SHOW_SHORTCUTS
+    shift
+    if [[ "${1:-}" == "--submenu" ]]; then
+      CURRENT_MENU="$2"
+      FZF_BORDER_LABEL=" $NUNCHUX_LABEL: $CURRENT_MENU "
+    fi
+    if ! launch 2>&1; then
+      echo "Press any key to close..."
+      read -n 1
+    fi
+    ;;
+  --hide-shortcuts)
+    SHOW_SHORTCUTS=""
+    shift
+    if [[ "${1:-}" == "--submenu" ]]; then
+      CURRENT_MENU="$2"
+      FZF_BORDER_LABEL=" $NUNCHUX_LABEL: $CURRENT_MENU "
+    fi
+    if ! launch 2>&1; then
+      echo "Press any key to close..."
+      read -n 1
+    fi
+    ;;
+  --launch-shortcut)
+    shift
+    launch_by_shortcut "$1"
     ;;
   --help | -h | help)
     usage

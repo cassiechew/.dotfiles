@@ -259,6 +259,29 @@ icon_success =
 icon_failed =
 ```
 
+## Keyboard Shortcuts
+
+Add shortcuts for frequently used items:
+
+```ini
+[app:git]
+cmd = lazygit
+shortcut = ctrl-g
+
+[app:docker]
+cmd = lazydocker
+shortcut = ctrl-d
+
+[menu:system]
+shortcut = ctrl-s
+
+[dirbrowser:config]
+directory = ~/.config
+shortcut = ctrl-c
+```
+
+Press `Ctrl-/` while in the menu to toggle shortcut visibility.
+
 ## Simple Apps
 
 Apps that just need a command and description:

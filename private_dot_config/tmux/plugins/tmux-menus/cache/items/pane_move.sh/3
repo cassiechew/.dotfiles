@@ -1,0 +1,1 @@
+ "" "swap pane with Prev" p "swap-pane -U  ; run-shell /Users/cassiechew/.config/tmux/plugins/tmux-menus/items/pane_move.sh" "swap pane with Next" n "swap-pane -D  ; run-shell /Users/cassiechew/.config/tmux/plugins/tmux-menus/items/pane_move.sh"

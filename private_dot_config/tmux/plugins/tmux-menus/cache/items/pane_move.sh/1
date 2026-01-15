@@ -1,0 +1,1 @@
+tmux display-menu -T '#[align=centre] Move Pane ' -x 'C' -y 'C' "Back to Handling Pane  <--" Left "run-shell '/Users/cassiechew/.config/tmux/plugins/tmux-menus/items/panes.sh'" "Back to Main menu      <==" Home "run-shell '/Users/cassiechew/.config/tmux/plugins/tmux-menus/items/main.sh'"

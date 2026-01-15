@@ -19,8 +19,8 @@ is_old_config_format() {
   while IFS= read -r line; do
     if [[ "$line" =~ ^\[([^\]]+)\]$ ]]; then
       local section="${BASH_REMATCH[1]}"
-      # Skip special global sections
-      [[ "$section" == "settings" || "$section" == "taskrunner" ]] && continue
+      # Skip special global sections (settings, taskrunner, order)
+      [[ "$section" == "settings" || "$section" == "taskrunner" || "$section" == "order" ]] && continue
       # If section doesn't have a colon, it's old format
       if [[ "$section" != *:* ]]; then
         return 0
@@ -354,6 +354,370 @@ check_and_migrate_config() {
 
   if is_old_config_format "$config_file"; then
     show_migration_prompt "$config_file"
+  fi
+
+  return 0
+}
+
+# ============================================================================
+# Order Migration: per-item order= → declarative [order] section
+# ============================================================================
+
+# Check if config needs order migration
+# Returns 0 if migration needed, 1 otherwise
+needs_order_migration() {
+  local config_file="$1"
+  [[ ! -f "$config_file" ]] && return 1
+
+  # Skip if config already has [order] section (already migrated)
+  if grep -qE '^\[order\]$' "$config_file"; then
+    # But still check for [order:taskrunner] which needs migration
+    if grep -qE '^\[order:taskrunner\]$' "$config_file"; then
+      return 0
+    fi
+    return 1
+  fi
+
+  # Check for per-item order= properties
+  if grep -qE '^[[:space:]]*order[[:space:]]*=' "$config_file"; then
+    return 0
+  fi
+
+  # Check for [order:taskrunner] section
+  if grep -qE '^\[order:taskrunner\]$' "$config_file"; then
+    return 0
+  fi
+
+  return 1
+}
+
+# Build the [order] section content from old config
+# Outputs the order section lines (without [order] header)
+build_order_section() {
+  local config_file="$1"
+  local -a items=()  # "order_value:type:name" entries
+
+  local current_section=""
+  local current_type=""
+  local current_name=""
+  local current_order=""
+  local in_order_taskrunner=0
+  local -a taskrunner_items=()
+
+  # Parse config to collect order values
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    # Section header
+    if [[ "$line" =~ ^\[([^\]]+)\]$ ]]; then
+      # Save previous section if it had an order
+      if [[ -n "$current_name" && -n "$current_order" ]]; then
+        items+=("$current_order:$current_type:$current_name")
+      fi
+
+      current_section="${BASH_REMATCH[1]}"
+      current_order=""
+      in_order_taskrunner=0
+
+      if [[ "$current_section" == "settings" ]]; then
+        current_type=""
+        current_name=""
+      elif [[ "$current_section" == "order:taskrunner" ]]; then
+        in_order_taskrunner=1
+        current_type=""
+        current_name=""
+      elif [[ "$current_section" =~ ^([^:]+):(.+)$ ]]; then
+        current_type="${BASH_REMATCH[1]}"
+        current_name="${BASH_REMATCH[2]}"
+      else
+        current_type=""
+        current_name=""
+      fi
+      continue
+    fi
+
+    # Collect taskrunner items from [order:taskrunner]
+    if [[ $in_order_taskrunner -eq 1 ]]; then
+      local item="${line#"${line%%[![:space:]]*}"}"
+      item="${item%"${item##*[![:space:]]}"}"
+      [[ -n "$item" && "$item" != \#* ]] && taskrunner_items+=("$item")
+      continue
+    fi
+
+    # Parse order= property
+    if [[ "$line" =~ ^[[:space:]]*order[[:space:]]*=[[:space:]]*([0-9]+) ]]; then
+      current_order="${BASH_REMATCH[1]}"
+    fi
+  done <"$config_file"
+
+  # Save last section if it had an order
+  if [[ -n "$current_name" && -n "$current_order" ]]; then
+    items+=("$current_order:$current_type:$current_name")
+  fi
+
+  # Sort items by order value
+  local sorted
+  sorted=$(printf '%s\n' "${items[@]}" | sort -t: -k1,1n)
+
+  # Output sorted items in new format
+  while IFS=: read -r _order type name; do
+    [[ -z "$name" ]] && continue
+    case "$type" in
+      taskrunner) echo "taskrunner:$name" ;;
+      *) echo "$name" ;;
+    esac
+  done <<<"$sorted"
+
+  # Append taskrunner items from [order:taskrunner] if any
+  for runner in "${taskrunner_items[@]}"; do
+    echo "taskrunner:$runner"
+  done
+}
+
+# Convert config: add [order] section, remove order= properties, remove [order:taskrunner]
+convert_order_config() {
+  local config_file="$1"
+  local order_content="$2"
+  local output=""
+  local in_settings=0
+  local order_section_added=0
+  local skip_section=0
+  local current_section=""
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    # Section header
+    if [[ "$line" =~ ^\[([^\]]+)\]$ ]]; then
+      current_section="${BASH_REMATCH[1]}"
+
+      # Skip [order:taskrunner] section entirely
+      if [[ "$current_section" == "order:taskrunner" ]]; then
+        skip_section=1
+        continue
+      fi
+      skip_section=0
+
+      # Insert [order] section right after [settings] (before first non-settings section)
+      if [[ "$current_section" != "settings" && $order_section_added -eq 0 ]]; then
+        output+="[order]"$'\n'
+        output+="$order_content"$'\n'
+        output+=$'\n'  # Blank line after [order] section
+        order_section_added=1
+      fi
+
+      # Track if we're in settings
+      if [[ "$current_section" == "settings" ]]; then
+        in_settings=1
+      else
+        in_settings=0
+      fi
+
+      output+="$line"$'\n'
+      continue
+    fi
+
+    # Skip lines in [order:taskrunner]
+    [[ $skip_section -eq 1 ]] && continue
+
+    # Skip order= properties
+    if [[ "$line" =~ ^[[:space:]]*order[[:space:]]*= ]]; then
+      continue
+    fi
+
+    output+="$line"$'\n'
+  done <"$config_file"
+
+  # Handle case where [order] wasn't added (no sections after settings, or only settings)
+  if [[ $order_section_added -eq 0 && -n "$order_content" ]]; then
+    output+=$'\n'"[order]"$'\n'
+    output+="$order_content"$'\n'
+  fi
+
+  echo "$output"
+}
+
+# Show order migration prompt
+show_order_migration_prompt() {
+  local config_file="$1"
+  local backup_file="${config_file}.order-backup"
+  local box_width=62
+  local border_color="\033[90m"
+  local reset="\033[0m"
+
+  # Build the order section preview
+  local order_content
+  order_content=$(build_order_section "$config_file")
+
+  box_line() {
+    local content="$1"
+    local term_width=$(tput cols)
+    local padding=$(((term_width - box_width) / 2))
+    [[ $padding -gt 0 ]] && printf "%*s" $padding ""
+    local plain=$(echo -e "$content" | sed 's/\x1b\[[0-9;]*m//g')
+    local content_len=${#plain}
+    local inner_width=$((box_width - 4))
+    local right_pad=$((inner_width - content_len))
+    printf "${border_color}│${reset} "
+    printf "%b" "$content"
+    printf "%*s" $right_pad ""
+    printf " ${border_color}│${reset}\n"
+  }
+
+  box_top() {
+    local term_width=$(tput cols)
+    local padding=$(((term_width - box_width) / 2))
+    [[ $padding -gt 0 ]] && printf "%*s" $padding ""
+    printf "${border_color}╭"
+    printf '─%.0s' $(seq 1 $((box_width - 2)))
+    printf "╮${reset}\n"
+  }
+
+  box_bottom() {
+    local term_width=$(tput cols)
+    local padding=$(((term_width - box_width) / 2))
+    [[ $padding -gt 0 ]] && printf "%*s" $padding ""
+    printf "${border_color}╰"
+    printf '─%.0s' $(seq 1 $((box_width - 2)))
+    printf "╯${reset}\n"
+  }
+
+  box_empty() { box_line ""; }
+
+  # Clear screen and show migration prompt
+  clear
+  tput civis 2>/dev/null || true
+
+  local height=$(tput lines)
+  local content_lines=$(echo "$order_content" | wc -l)
+  local box_height=$((18 + content_lines))
+  local top_padding=$(((height - box_height) / 2))
+  for ((i = 0; i < top_padding; i++)); do echo; done
+
+  box_top
+  box_empty
+  box_line "\033[1;33m         New Ordering Mechanism\033[0m"
+  box_empty
+  box_line "Previously you could set an \033[1morder\033[0m property on entries."
+  box_line "This has been replaced with a simpler \033[1m[order]\033[0m section."
+  box_empty
+  box_line "\033[90mYour config will be updated to:\033[0m"
+
+  while IFS= read -r item; do
+    [[ -z "$item" ]] && continue
+    box_line "  \033[36m$item\033[0m"
+  done <<<"$order_content"
+
+  box_empty
+  box_line "\033[90mYour old config will be backed up.\033[0m"
+  box_empty
+  box_line "\033[1;32m[Enter]\033[0m Migrate config  \033[1;31m[Esc]\033[0m Exit"
+  box_empty
+  box_bottom
+
+  # Wait for user input
+  while true; do
+    IFS= read -rsn1 key
+    if [[ -z "$key" ]]; then
+      # Enter - perform migration
+      tput cnorm 2>/dev/null || true
+
+      # Create backup
+      cp "$config_file" "$backup_file"
+
+      # Check for vim modeline at end
+      local modeline=""
+      local last_line
+      last_line=$(tail -1 "$config_file")
+      if [[ "$last_line" =~ ^#.*vim: ]]; then
+        modeline="$last_line"
+      fi
+
+      # Convert config
+      local new_config
+      if [[ -n "$modeline" ]]; then
+        local temp_file="${config_file}.tmp"
+        grep -v "^#.*vim:" "$config_file" >"$temp_file"
+        new_config=$(convert_order_config "$temp_file" "$order_content")
+        rm -f "$temp_file"
+      else
+        new_config=$(convert_order_config "$config_file" "$order_content")
+      fi
+
+      # Write new config
+      echo "$new_config" >"$config_file"
+
+      # Restore vim modeline
+      if [[ -n "$modeline" ]]; then
+        echo "$modeline" >>"$config_file"
+      fi
+
+      # Verify migration worked (check [order] section exists)
+      if grep -qE '^\[order\]$' "$config_file"; then
+        # Show success
+        clear
+        local height=$(tput lines)
+        local top_padding=$(((height - 10) / 2))
+        for ((i = 0; i < top_padding; i++)); do echo; done
+
+        box_top
+        box_empty
+        box_line "\033[1;32m        Migration successful!\033[0m"
+        box_empty
+        box_line "\033[90mBackup saved to:\033[0m"
+        box_line "\033[90m${backup_file}\033[0m"
+        box_empty
+        box_line "Press any key to restart nunchux..."
+        box_empty
+        box_bottom
+        read -n 1 -s
+        # Exit so nunchux restarts cleanly with new config
+        exit 0
+      else
+        # Migration failed
+        clear
+        local height=$(tput lines)
+        local top_padding=$(((height - 10) / 2))
+        for ((i = 0; i < top_padding; i++)); do echo; done
+
+        box_top
+        box_empty
+        box_line "\033[1;31m        Migration failed!\033[0m"
+        box_empty
+        box_line "\033[90mYour original config has been restored.\033[0m"
+        box_empty
+        box_line "Press any key to exit..."
+        box_empty
+        box_bottom
+        # Restore from backup
+        cp "$backup_file" "$config_file"
+        read -n 1 -s
+        exit 1
+      fi
+    fi
+
+    case "$key" in
+    $'\x1b')
+      read -rsn2 -t 0.01 seq
+      if [[ -z "$seq" ]]; then
+        # Plain Escape - exit nunchux
+        tput cnorm 2>/dev/null || true
+        exit 0
+      fi
+      ;;
+    esac
+  done
+}
+
+# Main order migration check
+check_and_migrate_order_config() {
+  local config_file
+  config_file=$(get_config_file)
+
+  [[ -z "$config_file" ]] && return 0
+  [[ ! -f "$config_file" ]] && return 0
+
+  # Only run interactively (not in subshells or pipes)
+  [[ ! -t 0 ]] && return 0
+
+  if needs_order_migration "$config_file"; then
+    show_order_migration_prompt "$config_file"
   fi
 
   return 0

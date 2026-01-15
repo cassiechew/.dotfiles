@@ -66,15 +66,9 @@ taskrunner_parse_section() {
   TASKRUNNER_PRIMARY_ACTION["$name"]="${section_data[primary_action]:-}"
   TASKRUNNER_SECONDARY_ACTION["$name"]="${section_data[secondary_action]:-}"
 
-  # Parse order property
-  local _order="${section_data[order]:-}"
-
   set -u
 
   TASKRUNNER_ORDER+=("$name")
-
-  # Track in global order with optional explicit order
-  track_config_item "taskrunner:$name" "$_order"
 }
 
 # Load taskrunner providers from taskrunners directory
@@ -181,13 +175,15 @@ taskrunner_build_menu() {
       tail_len=$((24 - content_len))
       ((tail_len < 3)) && tail_len=3
       divider_tail=$(printf '─%.0s' $(seq 1 $tail_len))
-      printf "   ─── %s%s %s\t\t\t\t\t\n" "$label" "$runner_icon" "$divider_tail"
+      # Format: visible_part \t shortcut \t name \t ... (no shortcut for dividers)
+      printf "   ─── %s%s %s\t\t\t\t\t\t\n" "$label" "$runner_icon" "$divider_tail"
       current_runner="$runner"
     fi
 
     local display_name="$label $item"
     local name="${runner}:${item}"
-    printf "%s  %-${max_width}s  %s\t%s\t%s\t\t\t\n" "$ICON_STOPPED" "$display_name" "$desc" "$name" "$cmd"
+    # Format: visible_part \t shortcut \t name \t cmd \t ... (no shortcut for taskrunner items)
+    printf "%s %-${max_width}s  %s\t\t%s\t%s\t\t\t\n" "$ICON_STOPPED" "$display_name" "$desc" "$name" "$cmd"
   done
 }
 
@@ -331,8 +327,12 @@ rm -f "$script_file"
 NUNCHUX_EOF
   chmod +x "$script_file"
 
+  # Clamp dimensions to max if set
+  local width="$APP_POPUP_WIDTH" height="$APP_POPUP_HEIGHT"
+  clamp_popup_dimensions width height
+
   local title=" $NUNCHUX_LABEL: $task_name "
-  tmux run-shell -b "sleep 0.05; tmux display-popup -E -b rounded -T '$title' -w '$APP_POPUP_WIDTH' -h '$APP_POPUP_HEIGHT' '$script_file'"
+  tmux run-shell -b "sleep 0.05; tmux display-popup -E -b rounded -T '$title' -w '$width' -h '$height' '$script_file'"
   exit 0
 }
 

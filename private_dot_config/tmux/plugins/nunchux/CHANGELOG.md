@@ -2,6 +2,78 @@
 
 All notable changes to nunchux will be documented in this file.
 
+## [2.2.0]
+
+### Keyboard Shortcuts
+
+Assign keyboard shortcuts to launch items directly from the menu:
+
+```ini
+[app:lazygit]
+cmd = lazygit
+shortcut = ctrl-g
+
+[menu:system]
+shortcut = ctrl-s
+
+[dirbrowser:configs]
+directory = ~/.config
+shortcut = ctrl-c
+```
+
+Press the shortcut key while the menu is open to launch the item immediately.
+
+- **Toggle visibility** - Press `Ctrl-/` to show/hide the shortcut column
+- **Validation** - Invalid, reserved, or duplicate shortcuts show an error screen at startup
+- **Reserved keys** - `enter`, `esc`, `ctrl-x`, `/`, and your configured primary/secondary keys cannot be used
+
+Shortcuts are available on apps, submenus, and directory browsers. Taskrunner items cannot have shortcuts (they're discovered at runtime).
+
+### Maximum Dimensions
+
+Cap popup and menu sizes on large screens with new `max_*` settings:
+
+```ini
+[settings]
+popup_width = 90%
+popup_height = 90%
+max_popup_height = 50
+max_popup_width = 160
+
+menu_width = 60%
+menu_height = 50%
+max_menu_width = 120
+max_menu_height = 40
+```
+
+Percentages are calculated against the tmux window size, then clamped to the maximum.
+
+### Declarative Ordering
+
+The per-item `order` property has been replaced with declarative `[order]` sections for simpler configuration:
+
+```ini
+[order]
+lazygit
+config
+taskrunner:just
+system
+taskrunner:npm
+docker
+```
+
+Items are displayed in the order listed. Unlisted items are appended alphabetically.
+
+- **Taskrunners in main order** - Use `taskrunner:name` format to position taskrunners anywhere in the menu
+- **Submenu ordering** - Use `[order:submenu_name]` to control item order within submenus
+- **Migration assistant** - Automatically converts old `order =` properties to new format with backup
+
+When you launch nunchux with the old `order =` properties, an interactive migration prompt will convert your config automatically.
+
+### Bug Fixes
+
+- Fixed helper commands (`ago`, `lines`, `nearest`) not working in status commands when environment inheritance was enabled
+
 ## [2.1.0]
 
 ### New Features
@@ -134,7 +206,7 @@ When you launch nunchux with an old config, you'll see an interactive migration 
 ### New Features
 
 - **Per-project configs** - Place `.nunchuxrc` in any directory, searches upward like `.gitignore`
-- **Ordering control** - New `order` property on any item, lower values appear first
+- **Ordering control** - ~~New `order` property on any item~~ (replaced by `[order]` sections in v2.3.0)
 
 ### Improvements
 

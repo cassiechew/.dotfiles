@@ -29,6 +29,7 @@ declare -gA DIRBROWSE_SORT_DIR=()
 declare -gA DIRBROWSE_CACHE_TTL=()
 declare -gA DIRBROWSE_PRIMARY_ACTION=()   # Per-dirbrowser primary action override
 declare -gA DIRBROWSE_SECONDARY_ACTION=() # Per-dirbrowser secondary action override
+declare -gA DIRBROWSE_SHORTCUT=()         # Per-dirbrowser keyboard shortcut
 declare -ga DIRBROWSE_ORDER=()
 
 # Register with core
@@ -58,16 +59,11 @@ dirbrowser_parse_section() {
   DIRBROWSE_CACHE_TTL["$name"]="${section_data[cache_ttl]:-300}"
   DIRBROWSE_PRIMARY_ACTION["$name"]="${section_data[primary_action]:-}"
   DIRBROWSE_SECONDARY_ACTION["$name"]="${section_data[secondary_action]:-}"
-
-  # Parse order property
-  local _order="${section_data[order]:-}"
+  DIRBROWSE_SHORTCUT["$name"]="${section_data[shortcut]:-}"
 
   set -u
 
   DIRBROWSE_ORDER+=("$name")
-
-  # Track in global order with optional explicit order
-  track_config_item "dirbrowser:$name" "$_order"
 }
 
 # Build menu entries for directory browsers
@@ -87,9 +83,11 @@ dirbrowser_build_menu() {
     file_count=$(find "$dir" -type f 2>/dev/null | wc -l | tr -d ' ')
     [[ "$file_count" -gt 1000 ]] && file_count="1000+"
 
-    # Format: visible_part \t name \t (empty fields)
+    local shortcut="${DIRBROWSE_SHORTCUT[$name]:-}"
+
+    # Format: visible_part \t shortcut \t name \t (empty fields)
     # Use dirbrowser: prefix to identify
-    printf "▸  %-12s  (%s files)\t%s\t\t\t\t\n" "$name" "$file_count" "dirbrowser:$name"
+    printf "▸ %-12s  (%s files)\t%s\t%s\t\t\t\t\n" "$name" "$file_count" "$shortcut" "dirbrowser:$name"
   done
 }
 
@@ -252,7 +250,9 @@ launch_dirbrowse() {
   local fzf_opts
   local primary_display="${PRIMARY_KEY^}"
   local secondary_display="${SECONDARY_KEY^}"
-  build_fzf_opts fzf_opts "$primary_display: edit | $secondary_display: window | Esc: back"
+  local header=""
+  [[ -n "$SHOW_SHORTCUTS" ]] && header="$primary_display: edit | $secondary_display: window | Esc: back"
+  build_fzf_opts fzf_opts "$header"
   fzf_opts+=(--ansi)
 
   # Check if we have a valid cache

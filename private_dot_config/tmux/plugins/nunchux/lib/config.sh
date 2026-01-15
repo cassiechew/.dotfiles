@@ -18,9 +18,14 @@ ICON_RUNNING="${ICON_RUNNING:-●}"
 ICON_STOPPED="${ICON_STOPPED:-○}"
 MENU_WIDTH="${MENU_WIDTH:-60%}"
 MENU_HEIGHT="${MENU_HEIGHT:-50%}"
+MAX_MENU_WIDTH="${MAX_MENU_WIDTH:-}"   # empty = no limit (columns)
+MAX_MENU_HEIGHT="${MAX_MENU_HEIGHT:-}" # empty = no limit (rows)
 APP_POPUP_WIDTH="${APP_POPUP_WIDTH:-90%}"
 APP_POPUP_HEIGHT="${APP_POPUP_HEIGHT:-90%}"
+MAX_POPUP_WIDTH="${MAX_POPUP_WIDTH:-}"   # empty = no limit (columns)
+MAX_POPUP_HEIGHT="${MAX_POPUP_HEIGHT:-}" # empty = no limit (rows)
 MENU_CACHE_TTL="${MENU_CACHE_TTL:-60}"
+SHOW_HELP="${SHOW_HELP:-false}"          # show help header and shortcuts (toggle with ctrl-/)
 
 # Keybindings
 PRIMARY_KEY="${PRIMARY_KEY:-enter}"
@@ -73,6 +78,59 @@ is_valid_fzf_key() {
   return 1
 }
 
+# Reserved keys that cannot be used as shortcuts
+FZF_RESERVED_KEYS=(enter esc ctrl-x)
+
+# Global shortcut registry for duplicate detection
+declare -gA SHORTCUT_REGISTRY=()  # key -> item_name
+
+# Validate a shortcut key
+# Returns 0 if valid, 1 if invalid (with warning to stderr)
+validate_shortcut() {
+  local key="$1"
+  local item="$2"
+
+  # Empty is allowed (no shortcut)
+  [[ -z "$key" ]] && return 0
+
+  # Check if it's a valid fzf key
+  if ! is_valid_fzf_key "$key"; then
+    echo "Warning: invalid shortcut key '$key' for $item" >&2
+    return 1
+  fi
+
+  # Check reserved keys:
+  # - FZF_RESERVED_KEYS: static keys used by fzf/nunchux
+  # - PRIMARY_KEY: configured key for primary action (default: enter)
+  # - SECONDARY_KEY: configured key for secondary action (default: ctrl-o)
+  # - "/": used for jump mode
+  for reserved in "${FZF_RESERVED_KEYS[@]}" "$PRIMARY_KEY" "$SECONDARY_KEY" "/"; do
+    if [[ "$key" == "$reserved" ]]; then
+      echo "Warning: shortcut key '$key' is reserved" >&2
+      return 1
+    fi
+  done
+
+  return 0
+}
+
+# Register a shortcut, checking for duplicates
+# Returns 0 if registered, 1 if duplicate (with warning to stderr)
+register_shortcut() {
+  local key="$1"
+  local item="$2"
+
+  [[ -z "$key" ]] && return 0
+
+  if [[ -n "${SHORTCUT_REGISTRY[$key]:-}" ]]; then
+    echo "Warning: duplicate shortcut '$key' - already used by ${SHORTCUT_REGISTRY[$key]}" >&2
+    return 1
+  fi
+
+  SHORTCUT_REGISTRY["$key"]="$item"
+  return 0
+}
+
 # Validate keybindings and return error message if invalid
 validate_keybindings() {
   local invalid_keys=()
@@ -98,46 +156,9 @@ EXCLUDE_PATTERNS="${EXCLUDE_PATTERNS:-.git, node_modules, Cache, cache, .cache, 
 # Module dispatch table: type -> handler function
 declare -gA CONFIG_TYPE_HANDLERS
 
-# Global item order tracking (type:name in order of appearance)
-declare -ga CONFIG_ITEM_ORDER=()
-declare -gA CONFIG_ITEM_EXPLICIT_ORDER=() # Explicit order overrides (item -> order number)
-
-# Track item when parsed (called by module parse functions)
-# Usage: track_config_item "app:lazygit" [explicit_order]
-track_config_item() {
-  local item="$1"
-  local explicit_order="${2:-}"
-
-  CONFIG_ITEM_ORDER+=("$item")
-
-  if [[ -n "$explicit_order" ]]; then
-    CONFIG_ITEM_EXPLICIT_ORDER["$item"]="$explicit_order"
-  fi
-}
-
-# Get sort key for an item (explicit order or parse order)
-# Lower number = higher priority
-get_item_order() {
-  local item="$1"
-
-  # Check for explicit order first
-  if [[ -v CONFIG_ITEM_EXPLICIT_ORDER[$item] && -n "${CONFIG_ITEM_EXPLICIT_ORDER[$item]}" ]]; then
-    echo "${CONFIG_ITEM_EXPLICIT_ORDER[$item]}"
-    return
-  fi
-
-  # Otherwise use parse order (1000 + index to sort after explicit orders)
-  local i
-  for i in "${!CONFIG_ITEM_ORDER[@]}"; do
-    if [[ "${CONFIG_ITEM_ORDER[$i]}" == "$item" ]]; then
-      echo "$((1000 + i))"
-      return
-    fi
-  done
-
-  # Fallback - shouldn't happen
-  echo "9999"
-}
+# Order section storage
+declare -ga MAIN_ORDER=()              # Items from [order] section (including taskrunner:name)
+declare -gA SUBMENU_ORDER=()           # Associative: submenu_name -> "item1 item2 item3"
 
 # Register a config type handler
 # Usage: register_config_type "app" "app_parse_section"
@@ -191,7 +212,7 @@ parse_config() {
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ "$line" =~ ^[[:space:]]*$ ]] && continue
 
-    # Section header: [type:name] or [settings]
+    # Section header: [type:name] or [settings] or [order] or [order:*]
     if [[ "$line" =~ ^\[([^\]]+)\] ]]; then
       flush_section
       current_section="${BASH_REMATCH[1]}"
@@ -199,6 +220,14 @@ parse_config() {
       if [[ "$current_section" == "settings" ]]; then
         current_type=""
         current_name=""
+      elif [[ "$current_section" == "order" ]]; then
+        # [order] section - main menu order
+        current_type="order"
+        current_name=""
+      elif [[ "$current_section" =~ ^order:(.+)$ ]]; then
+        # [order:submenu] or [order:taskrunner] section
+        current_type="order"
+        current_name="${BASH_REMATCH[1]}"
       elif [[ "$current_section" =~ ^([^:]+):(.+)$ ]]; then
         # [type:name] format
         current_type="${BASH_REMATCH[1]}"
@@ -234,8 +263,12 @@ parse_config() {
         icon_stopped) ICON_STOPPED="$value" ;;
         menu_width) MENU_WIDTH="$value" ;;
         menu_height) MENU_HEIGHT="$value" ;;
+        max_menu_width) MAX_MENU_WIDTH="$value" ;;
+        max_menu_height) MAX_MENU_HEIGHT="$value" ;;
         popup_width) APP_POPUP_WIDTH="$value" ;;
         popup_height) APP_POPUP_HEIGHT="$value" ;;
+        max_popup_width) MAX_POPUP_WIDTH="$value" ;;
+        max_popup_height) MAX_POPUP_HEIGHT="$value" ;;
         fzf_prompt) FZF_PROMPT="$value" ;;
         fzf_pointer) FZF_POINTER="$value" ;;
         fzf_border) FZF_BORDER="$value" ;;
@@ -247,6 +280,7 @@ parse_config() {
         secondary_key) SECONDARY_KEY="$value" ;;
         primary_action) PRIMARY_ACTION="$value" ;;
         secondary_action) SECONDARY_ACTION="$value" ;;
+        show_help) SHOW_HELP="$value" ;;
         esac
       elif [[ "$current_section" == "taskrunner" ]]; then
         # Handle taskrunner defaults
@@ -258,6 +292,24 @@ parse_config() {
       else
         # Store in section_data for module handler
         section_data["$key"]="$value"
+      fi
+    elif [[ "$current_type" == "order" ]]; then
+      # Order section: lines are item names, not key=value
+      # Trim whitespace from line
+      local item="${line#"${line%%[![:space:]]*}"}"
+      item="${item%"${item##*[![:space:]]}"}"
+      [[ -z "$item" ]] && continue
+
+      if [[ -z "$current_name" ]]; then
+        # [order] - main menu order (apps, dirbrowsers, submenus, taskrunner:name)
+        MAIN_ORDER+=("$item")
+      else
+        # [order:submenu_name] - submenu item order
+        if [[ -v SUBMENU_ORDER[$current_name] ]]; then
+          SUBMENU_ORDER[$current_name]+=" $item"
+        else
+          SUBMENU_ORDER[$current_name]="$item"
+        fi
       fi
     fi
   done <"$config_file"

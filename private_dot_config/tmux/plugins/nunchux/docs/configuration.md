@@ -47,8 +47,12 @@ The `[settings]` section controls global behavior:
 | `icon_stopped` | `○` | Icon shown next to stopped apps |
 | `menu_width` | `60%` | Width of the app selector menu |
 | `menu_height` | `50%` | Height of the app selector menu |
+| `max_menu_width` | (none) | Maximum menu width in columns |
+| `max_menu_height` | (none) | Maximum menu height in rows |
 | `popup_width` | `90%` | Default width for app popups |
 | `popup_height` | `90%` | Default height for app popups |
+| `max_popup_width` | (none) | Maximum popup width in columns |
+| `max_popup_height` | (none) | Maximum popup height in rows |
 | `primary_key` | `enter` | Key for primary action |
 | `secondary_key` | `ctrl-o` | Key for secondary action |
 | `primary_action` | `popup` | Default primary action (see below) |
@@ -60,6 +64,25 @@ The `[settings]` section controls global behavior:
 | `fzf_colors` | (see below) | fzf color scheme |
 | `cache_ttl` | `60` | Seconds before cache refresh (0 to disable) |
 | `exclude_patterns` | (see below) | Patterns to exclude from directory browsers |
+
+### Maximum Dimensions
+
+On large screens, percentage-based dimensions can result in overly large popups. Use `max_menu_*` and `max_popup_*` settings to cap dimensions:
+
+```ini
+[settings]
+menu_width = 60%
+menu_height = 50%
+max_menu_width = 120    # Cap menu at 120 columns
+max_menu_height = 40    # Cap menu at 40 rows
+
+popup_width = 90%
+popup_height = 90%
+max_popup_width = 160   # Cap app popups at 160 columns
+max_popup_height = 50   # Cap app popups at 50 rows
+```
+
+The percentage is calculated against the current tmux window size, then clamped to the maximum if exceeded.
 
 ### Action Types
 
@@ -96,21 +119,96 @@ Code Cache, Session Storage, Local Storage, IndexedDB, databases, *.db, *.db-*,
 
 Patterns starting with `*` match filenames. Others exclude both directories and files with that name.
 
-## Ordering
+## Keyboard Shortcuts
 
-By default, items appear in the order they're defined in the config file. Use the `order` property to override this:
+Assign keyboard shortcuts to launch items directly from the menu without navigating:
 
 ```ini
-[app:htop]
-order = 10
-
 [app:lazygit]
-order = 5    # Appears before htop despite being defined after
+cmd = lazygit
+shortcut = ctrl-g
+
+[menu:system]
+shortcut = ctrl-s
+
+[dirbrowser:configs]
+directory = ~/.config
+shortcut = ctrl-c
 ```
 
-Lower values appear first. Items without `order` are sorted by config file position (after items with explicit orders).
+Press the shortcut key while the menu is open to launch the item immediately.
 
-The `order` property is available on all section types: apps, menus, dirbrowsers, and taskrunners.
+### Viewing Shortcuts
+
+Press `Ctrl-/` to toggle the shortcut column visibility. When shown, shortcuts appear on the left:
+
+```
+[ctrl-g] │ ○ lazygit       Git TUI
+         │ ○ htop          Process viewer
+[ctrl-s] │ ▸ system        System tools
+```
+
+### Reserved Keys
+
+These keys cannot be used as shortcuts:
+
+- `enter`, `esc`, `ctrl-x` - Used by fzf/nunchux
+- `/` - Used for jump mode
+- Your configured `primary_key` and `secondary_key`
+
+### Validation
+
+Nunchux validates shortcuts at startup:
+
+- **Invalid keys** - Keys not supported by fzf (e.g., `shift-enter`)
+- **Reserved keys** - Keys used by nunchux itself
+- **Duplicates** - Same shortcut assigned to multiple items
+
+If any shortcuts are invalid, an error screen shows all issues.
+
+### Supported Keys
+
+Common shortcut keys: `ctrl-a` through `ctrl-z`, `alt-a` through `alt-z`, `f1` through `f12`, `tab`, `space`.
+
+Note: `shift-enter` and `ctrl-enter` are **not supported** by most terminals.
+
+## Ordering
+
+Use `[order]` sections to control item order declaratively:
+
+```ini
+[order]
+lazygit
+config
+taskrunner:just
+system
+taskrunner:npm
+docker
+htop
+# Items not listed appear alphabetically after these
+```
+
+Items are displayed in the order listed. Unlisted items are appended alphabetically.
+
+Taskrunners use the `taskrunner:name` format (e.g., `taskrunner:just`). All tasks for that runner appear at that position. Individual tasks within each runner remain in their discovery order.
+
+### Submenu Ordering
+
+Control item order within submenus:
+
+```ini
+[order:system]
+duf
+ncdu
+btop
+journalctl
+```
+
+### Ordering Notes
+
+- Items not listed in `[order]` appear alphabetically after ordered items
+- Non-existent items in `[order]` sections are silently ignored
+- Apps, dirbrowsers, submenus, and taskrunners can all be listed in `[order]`
 
 ## Apps
 
@@ -137,7 +235,7 @@ on_exit = echo "done"
 | `on_exit` | No | Command to run after app exits |
 | `primary_action` | No | Override primary action for this app |
 | `secondary_action` | No | Override secondary action for this app |
-| `order` | No | Explicit sort order (lower = first) |
+| `shortcut` | No | Keyboard shortcut (e.g., `ctrl-g`) |
 
 ### Variables in cmd and on_exit
 
@@ -172,6 +270,7 @@ Menu sections support:
 - `status` - Dynamic status text
 - `desc` - Description
 - `cache_ttl` - Override cache duration for this submenu
+- `shortcut` - Keyboard shortcut (e.g., `ctrl-s`)
 - `order` - Explicit sort order (lower = first)
 
 ## Directory Browsers
@@ -202,7 +301,7 @@ height = 80
 | `height` | `80` | Popup height |
 | `primary_action` | `popup` | Override primary action |
 | `secondary_action` | `window` | Override secondary action |
-| `order` | (none) | Explicit sort order (lower = first) |
+| `shortcut` | (none) | Keyboard shortcut (e.g., `ctrl-c`) |
 
 ### Sort Modes
 
@@ -240,7 +339,6 @@ Task runners are **disabled by default** and must be explicitly enabled.
 | `label` | (runner name) | Label shown in menu |
 | `primary_action` | `window` | Override primary action |
 | `secondary_action` | `background_window` | Override secondary action |
-| `order` | (none) | Explicit sort order (lower = first) |
 
 ### Available Task Runners
 

@@ -51,11 +51,30 @@ load_modules() {
   fi
 }
 
-# Build combined menu from all modules (sorted by config order)
+# Get sort key for an item based on [order] sections
+# Returns: position in MAIN_ORDER (0-based), or 10000+alpha_position for unlisted items
+_get_order_key() {
+  local item="$1"
+  local i
+
+  # Check if item is in MAIN_ORDER
+  for i in "${!MAIN_ORDER[@]}"; do
+    if [[ "${MAIN_ORDER[$i]}" == "$item" ]]; then
+      echo "$i"
+      return
+    fi
+  done
+
+  # Not in MAIN_ORDER - return high number for alphabetical sorting later
+  echo "10000"
+}
+
+
+# Build combined menu from all modules (sorted by [order] sections)
 build_combined_menu() {
   local current_menu="${1:-}"
   local -a menu_lines=()
-  local -a order_keys=()
+  local -a item_names=()   # For sorting unlisted items alphabetically
 
   # Collect output from all modules
   for mod in "${LOADED_MODULES[@]}"; do
@@ -65,93 +84,114 @@ build_combined_menu() {
         [[ -z "$line" ]] && continue
         menu_lines+=("$line")
 
-        # Extract item name from line (second tab-separated field)
+        # Extract item name for sorting (field 3 after shortcut field)
         local item_name
-        item_name=$(echo "$line" | cut -f2)
-
-        # Check if this is a divider line (taskrunner section header)
-        if [[ "$line" == *"───"* ]]; then
-          # Parse runner name from divider: "   ─── label icon ───..."
-          # The label is after "─── " and before the next space or emoji
-          local divider_label
-          divider_label=$(echo "$line" | sed 's/.*─── \([^ ]*\).*/\1/')
-          # Find which taskrunner this belongs to
-          local found_runner=""
-          for r in "${LOADED_TASKRUNNERS[@]:-}"; do
-            local r_label
-            r_label=$(get_taskrunner_label "$r")
-            if [[ "$r_label" == "$divider_label" ]]; then
-              found_runner="$r"
-              break
-            fi
-          done
-          if [[ -n "$found_runner" ]]; then
-            # Give divider the same order as its taskrunner, but *10-1 to appear before items
-            local base_order
-            base_order=$(get_item_order "taskrunner:$found_runner")
-            order_keys+=("$((base_order * 10 - 1))")
-          else
-            order_keys+=("99980")
-          fi
-          continue
-        fi
-
-        # Map to config item key
-        local config_key
-        local order
-        if [[ "$item_name" == menu:* || "$item_name" == dirbrowser:* ]]; then
-          # Already has prefix
-          config_key="$item_name"
-          order=$(get_item_order "$config_key")
-          order_keys+=("$((order * 10))")
-        elif [[ "$item_name" == *:* ]]; then
-          # Could be taskrunner (runner:item) - check first part
-          local prefix="${item_name%%:*}"
-          local found=false
-          for r in "${LOADED_TASKRUNNERS[@]:-}"; do
-            if [[ "$r" == "$prefix" ]]; then
-              config_key="taskrunner:$prefix"
-              found=true
-              break
-            fi
-          done
-          if [[ "$found" == "true" ]]; then
-            order=$(get_item_order "$config_key")
-            order_keys+=("$((order * 10))")
-          else
-            # Unknown prefix - treat as app
-            config_key="app:$item_name"
-            order=$(get_item_order "$config_key")
-            order_keys+=("$((order * 10))")
-          fi
-        else
-          # Plain name - it's an app
-          config_key="app:$item_name"
-          order=$(get_item_order "$config_key")
-          order_keys+=("$((order * 10))")
-        fi
+        item_name=$(printf '%s' "$line" | cut -f3)
+        item_names+=("$item_name")
       done < <("$builder" "$current_menu")
     fi
   done
 
-  # Sort lines by order and output
   if [[ ${#menu_lines[@]} -eq 0 ]]; then
     return
   fi
 
-  # Create array of "order:index" for sorting
-  local -a sort_pairs=()
+  # Build sort keys for each line
+  local -a order_keys=()
+  local -a alpha_keys=()
   local i
   for i in "${!menu_lines[@]}"; do
-    sort_pairs+=("${order_keys[$i]}:$i")
+    local line="${menu_lines[$i]}"
+    local item_name="${item_names[$i]}"
+
+    # Check if this is a divider line (taskrunner section header)
+    if [[ "$line" == *"───"* ]]; then
+      # Parse runner name from divider
+      local divider_label
+      divider_label=$(echo "$line" | sed 's/.*─── \([^ ]*\).*/\1/')
+      # Find which taskrunner this belongs to
+      local found_runner=""
+      for r in "${LOADED_TASKRUNNERS[@]:-}"; do
+        local r_label
+        r_label=$(get_taskrunner_label "$r")
+        if [[ "$r_label" == "$divider_label" ]]; then
+          found_runner="$r"
+          break
+        fi
+      done
+      if [[ -n "$found_runner" ]]; then
+        local runner_order
+        runner_order=$(_get_order_key "taskrunner:$found_runner")
+        # Dividers get runner order * 100 - 1 to appear before runner items
+        order_keys+=("$((runner_order * 100 - 1))")
+        alpha_keys+=("$divider_label")
+      else
+        order_keys+=("999999")
+        alpha_keys+=("zzz")
+      fi
+      continue
+    fi
+
+    # Determine item identifier for ordering
+    local order_name=""
+    if [[ "$item_name" == menu:* ]]; then
+      order_name="${item_name#menu:}"
+      local order_key
+      order_key=$(_get_order_key "$order_name")
+      order_keys+=("$((order_key * 100))")
+      alpha_keys+=("$order_name")
+    elif [[ "$item_name" == dirbrowser:* ]]; then
+      order_name="${item_name#dirbrowser:}"
+      local order_key
+      order_key=$(_get_order_key "$order_name")
+      order_keys+=("$((order_key * 100))")
+      alpha_keys+=("$order_name")
+    elif [[ "$item_name" == *:* ]]; then
+      # Could be taskrunner item (runner:task)
+      local prefix="${item_name%%:*}"
+      local is_taskrunner=false
+      for r in "${LOADED_TASKRUNNERS[@]:-}"; do
+        if [[ "$r" == "$prefix" ]]; then
+          is_taskrunner=true
+          break
+        fi
+      done
+      if [[ "$is_taskrunner" == "true" ]]; then
+        # Taskrunner item - sort by runner order (lookup taskrunner:$runner in MAIN_ORDER)
+        local runner_order
+        runner_order=$(_get_order_key "taskrunner:$prefix")
+        order_keys+=("$((runner_order * 100))")
+        alpha_keys+=("${item_name#*:}")
+      else
+        # Regular app with / in name (submenu child)
+        order_name="$item_name"
+        local order_key
+        order_key=$(_get_order_key "$order_name")
+        order_keys+=("$((order_key * 100))")
+        alpha_keys+=("$order_name")
+      fi
+    else
+      # Plain app name
+      order_name="$item_name"
+      local order_key
+      order_key=$(_get_order_key "$order_name")
+      order_keys+=("$((order_key * 100))")
+      alpha_keys+=("$order_name")
+    fi
   done
 
-  # Sort by order (numeric)
+  # Create array of "order:alpha:index" for sorting
+  local -a sort_pairs=()
+  for i in "${!menu_lines[@]}"; do
+    sort_pairs+=("${order_keys[$i]}:${alpha_keys[$i]}:$i")
+  done
+
+  # Sort by order (numeric), then by alpha (for unlisted items)
   local sorted
-  sorted=$(printf '%s\n' "${sort_pairs[@]}" | sort -t: -k1 -n)
+  sorted=$(printf '%s\n' "${sort_pairs[@]}" | sort -t: -k1,1n -k2,2)
 
   # Output in sorted order
-  while IFS=: read -r _order idx; do
+  while IFS=: read -r _order _alpha idx; do
     echo "${menu_lines[$idx]}"
   done <<<"$sorted"
 }

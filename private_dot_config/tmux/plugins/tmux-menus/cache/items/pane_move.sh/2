@@ -1,0 +1,1 @@
+ "Display Commands" ! 'run-shell "show_cmds_state='1' /Users/cassiechew/.config/tmux/plugins/tmux-menus/items/pane_move.sh"'

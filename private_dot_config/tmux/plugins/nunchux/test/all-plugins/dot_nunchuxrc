@@ -22,6 +22,7 @@ status = n=$(git status -s 2>/dev/null | wc -l | tr -d ' '); [[ $n -gt 0 ]] && e
 [app:htop]
 cmd = htop
 desc = Process viewer
+shortcut = ctrl-h
 
 # Submenu
 [menu:system]
