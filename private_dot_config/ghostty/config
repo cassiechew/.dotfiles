@@ -48,8 +48,15 @@
 # # Just for example:
 # resize-overlay-duration = 4s 200ms
 
-#font-family = "pragmasevka"
-font-family = "IosevkaTerm Nerd Font"
-theme = dark:"Catppuccin Frappe",light:"Catppuccin Latte"
-# theme = "Catppuccin Frappe"
+#font-family = "IosevkaTerm Nerd Font"
+font-family = "Maple Mono NF"
+theme = dark:Cassie Dark,light:Cassie Light
 font-feature = +calt, +liga, +dlig
+macos-titlebar-style = hidden
+
+bell-features = system
+
+macos-option-as-alt = left
+
+# Extend terminal content bg into gaps so no grey strip below tmux status bar
+window-padding-color = extend

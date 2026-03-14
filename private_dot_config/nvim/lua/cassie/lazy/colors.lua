@@ -43,11 +43,12 @@ return {
 						crust = "#FFD6E3",
 					},
 					frappe = {
-						pink = "#FF4D94",
+						pink = "#F77AB0",
 						mauve = "#FF0066",
-						base = "#4D0026",
-						mantle = "#3D001E",
-						crust = "#2D0016",
+						text = "#F2F4F8",
+						base = "#161616",
+						mantle = "#111111",
+						crust = "#0D0D0D",
 					},
 				},
 
