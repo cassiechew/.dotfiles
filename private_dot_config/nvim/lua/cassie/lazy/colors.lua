@@ -33,6 +33,24 @@ return {
 
 				transparent_background = false,
 
+				-- Hot pink accent palette + custom backgrounds
+				color_overrides = {
+					latte = {
+						pink = "#FF0066",
+						mauve = "#CC0052",
+						base = "#FFF0F5",
+						mantle = "#FFE4ED",
+						crust = "#FFD6E3",
+					},
+					frappe = {
+						pink = "#FF4D94",
+						mauve = "#FF0066",
+						base = "#4D0026",
+						mantle = "#3D001E",
+						crust = "#2D0016",
+					},
+				},
+
 				integrations = {
                     noice = true,
 					overseer = true,
@@ -63,8 +81,8 @@ return {
 
 				custom_highlights = function(colors)
 					return {
-						-- NormalFloat = { bg = "NONE" },
-						-- FloatBorder = { bg = "NONE" },
+						CursorLineNr = { fg = colors.pink, style = { "bold" } },
+						MatchParen = { fg = colors.pink, style = { "bold" } },
 					}
 				end,
 			})
