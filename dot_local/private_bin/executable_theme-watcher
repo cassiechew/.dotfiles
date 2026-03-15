@@ -1,0 +1,27 @@
+#!/bin/bash
+# Watches macOS appearance and reloads tmux + ghostty when it changes.
+# Runs as a launchd agent, polling every 30s.
+
+CACHE_FILE="/tmp/.macos-appearance-mode"
+
+get_mode() {
+  defaults read -g AppleInterfaceStyle 2>/dev/null || echo "Light"
+}
+
+current=$(get_mode)
+
+# Initialize cache on first run
+if [ ! -f "$CACHE_FILE" ]; then
+  echo "$current" > "$CACHE_FILE"
+fi
+
+previous=$(cat "$CACHE_FILE")
+
+if [ "$current" != "$previous" ]; then
+  echo "$current" > "$CACHE_FILE"
+
+  # Reload tmux (regenerates temp conf with correct mode)
+  if command -v tmux >/dev/null 2>&1 && tmux list-sessions >/dev/null 2>&1; then
+    tmux source-file ~/.tmux.conf 2>/dev/null
+  fi
+fi
