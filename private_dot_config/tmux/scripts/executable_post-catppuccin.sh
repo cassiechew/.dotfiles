@@ -12,6 +12,12 @@ set -wg pane-border-style "fg=#F77AB0,bg=#161616"
 set -wg pane-active-border-style "fg=#FF0066,bg=#161616"
 set -g window-style "bg=#161616"
 set -g window-active-style "bg=#161616"
+set -g window-status-style "bg=#1E1E1E,fg=#F77AB0"
+set -g window-status-last-style "bg=#1E1E1E,fg=#F77AB0"
+set -g window-status-current-style "bg=#FF0066,fg=#f2f4f8,bold"
+set -g window-status-format " #I#{?#{!=:#{window_name},Window},: #W,} "
+set -g window-status-current-format "#[bg=#FF0066,fg=#f2f4f8,bold] #I#{?#{!=:#{window_name},Window},: #W,} "
+set -g status-style "bg=#161616,fg=#f2f4f8"
 DARK
 else
   cat > "$CONF" << 'LIGHT'
@@ -19,6 +25,12 @@ set -wg pane-border-style "fg=#F77AB0,bg=#FFF0F5"
 set -wg pane-active-border-style "fg=#FF0066,bg=#FFF0F5"
 set -g window-style "bg=#FFF0F5"
 set -g window-active-style "bg=#FFF0F5"
+set -g window-status-style "bg=#FFE4ED,fg=#CC0052"
+set -g window-status-last-style "bg=#FFE4ED,fg=#CC0052"
+set -g window-status-current-style "bg=#FF0066,fg=#FFFFFF,bold"
+set -g window-status-format " #I#{?#{!=:#{window_name},Window},: #W,} "
+set -g window-status-current-format "#[bg=#FF0066,fg=#FFFFFF,bold] #I#{?#{!=:#{window_name},Window},: #W,} "
+set -g status-style "bg=#FFF0F5,fg=#CC0052"
 LIGHT
 fi
 
