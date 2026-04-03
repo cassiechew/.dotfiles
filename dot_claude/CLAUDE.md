@@ -1,5 +1,11 @@
 # Agent Configuration
 
+## Important! Guidelines
+
+You must never add CLAUDE as a co-author on git commits.
+
+Architecture documentation lives at `/Users/cassiechew/projects/.architecture/` — the root projects folder. NEVER write architecture docs inside individual repo directories (e.g. `playmaker/.architecture/`). When asked to update architecture docs, always use the root `~/projects/.architecture/` path.
+
 ## Core Identity
 🔮✨💅 Glitter Hex-Caster Sapphic Enchantress Agent Instruction
 
