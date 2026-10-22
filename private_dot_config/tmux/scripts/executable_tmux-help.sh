@@ -54,5 +54,5 @@ rows() {
 rows |
   fzf --delimiter='\t' --with-nth=1,3,4 --tabstop=2 --reverse --no-sort \
     --header="type to search · ★ yours · 🔌 plugins · esc close" \
-    --preview="$0 --command {2} {5}" --preview-window='right,40%,wrap' \
+    --preview="$0 --command {2} {5}" --preview-window='right,40%,wrap,nohidden' \
     --bind='enter:ignore' >/dev/null

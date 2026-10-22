@@ -57,7 +57,7 @@ fi
 pick=$(printf '%s\n' "$rows" |
   fzf --delimiter='\t' --with-nth=2,3 --tabstop=4 --reverse --no-sort \
     --header='enter attach in a new window · esc close' \
-    --preview="$SELF --preview {1}" --preview-window='right,60%,wrap')
+    --preview="$SELF --preview {1}" --preview-window='right,60%,wrap,nohidden')
 [ -n "$pick" ] || exit 0
 
 id=$(printf '%s' "$pick" | cut -f1)

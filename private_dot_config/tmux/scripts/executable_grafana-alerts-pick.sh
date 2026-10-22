@@ -111,7 +111,7 @@ fi
 "$JQ" -r 'to_entries[] | "\(.key)\t🚨 \(.value.labels.alertname)\t\(.value.labels.severity // "none")"' "$ALERTS_FILE" |
   fzf --delimiter='\t' --with-nth=2,3 --tabstop=4 --reverse --no-sort \
     --header='o/enter open in Grafana · i investigate in the background · esc close' \
-    --preview="$SELF --preview {1}" --preview-window='right,60%,wrap' \
+    --preview="$SELF --preview {1}" --preview-window='right,60%,wrap,nohidden' \
     --bind="enter:execute-silent($SELF --open {1})" \
     --bind="o:execute-silent($SELF --open {1})" \
     --bind="i:execute-silent($SELF --investigate {1})+abort"
