@@ -61,7 +61,7 @@ BADGES="#[align=right]#[fg=#FF0066]#[bold]#(/Users/cassiechew/go/bin/mugicha unr
 BADGES+="#($SCRIPTS/next-meeting.sh) #($SCRIPTS/grafana-alerts.sh) #($SCRIPTS/claude-agents.sh) "
 # While the prefix is pressed, which-key style: the row shows what's next.
 key() { printf '#[fg=#FF0066]#[bold]%s#[default] %s   ' "$1" "$2"; }
-HINTS="#[align=left] $(key A alerts)$(key G agents)$(key P projects)"
+HINTS="#[align=left] $(key '?' 'all keys')$(key A alerts)$(key G agents)$(key P projects)"
 HINTS+="$(key '|' 'split →')$(key - 'split ↓')$(key c window)$(key x 'kill pane')"
 HINTS+="$(key z zoom)$(key '[' copy)$(key r reload)$(key '\' menus)"
 tmux set -gu status-format
