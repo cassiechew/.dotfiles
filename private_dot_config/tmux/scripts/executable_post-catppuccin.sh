@@ -50,3 +50,14 @@ tmux source-file "$CONF"
 # our status-right rebuild, so the tokens were never replaced.
 tmux run-shell ~/.config/tmux/plugins/tmux-cpu/cpu.tmux
 tmux run-shell ~/.config/tmux/plugins/tmux-battery/battery.tmux
+
+# Two status rows: the badges (unread, meeting, alerts, agents) on top, and the
+# usual vim-style bar (mode, windows, catppuccin) below. The bottom row copies
+# tmux's default layout, reset first so a rerun never copies the badges row.
+SCRIPTS=/Users/cassiechew/.config/tmux/scripts
+BADGES="#[align=right]#[fg=#FF0066,bold]#(/Users/cassiechew/go/bin/mugicha unread)#[default] "
+BADGES+="#($SCRIPTS/next-meeting.sh) #($SCRIPTS/grafana-alerts.sh) #($SCRIPTS/claude-agents.sh) "
+tmux set -gu status-format
+tmux set -g 'status-format[1]' "$(tmux show -gv 'status-format[0]')"
+tmux set -g 'status-format[0]' "$BADGES"
+tmux set -g status 2
