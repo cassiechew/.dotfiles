@@ -281,6 +281,19 @@ inbox assume "<what you assumed, and what you're doing because of it>"
 - Log the assumptions that would change the outcome if wrong, not routine choices.
 - Questions you have to stop for still go through AskUserQuestion: a waiting session already shows in the Inbox.
 
+## recall before asking
+
+Before you ask Cassie anything, through AskUserQuestion, an `inbox` entry, or a question left in a report, check whether it's already answered in what's been recorded:
+
+```
+/recall <the question, in plain words>
+```
+
+- It searches memory, checkpoints, `.architecture/`, active work and diagrams, read-only. A familiar without the skill can search the same places directly with `rg`: `~/.claude/projects/-Users-cassiechew-projects/memory/`, `~/projects/.checkpoints/`, `~/projects/.architecture/`.
+- If recall answers it, use the answer and say where it came from instead of asking.
+- If it half-answers, ask a sharper question that cites what you found ("memory says X from 3 Oct; does that still hold?").
+- It doesn't replace asking for what only Cassie can decide: approvals, anything outward-facing, and preferences nothing records.
+
 ## squeeze — Lossless CLI Output Compressor
 
 `squeeze` is installed at `~/.cargo/bin/squeeze` and is on PATH. It compresses command output losslessly: strips terminal chrome, ANSI, hint lines, and progress bars; groups test failures first; collapses passing test names to per-file counts; and declares any omissions with a `(... pass --flag to include)` footer. **Never silent.**
