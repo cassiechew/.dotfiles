@@ -12,8 +12,7 @@
 # notifying.
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin"
-JQ=$(command -v jq)
-CLAUDE=$(command -v claude || echo "$HOME/.local/bin/claude")
+. "$(dirname "$0")/claude-common.sh"
 NOTIFIER=$(command -v terminal-notifier)
 STATE=${AGENT_WATCH_STATE:-$HOME/.cache/agent-watch.json}
 SELF="$0"
@@ -47,15 +46,6 @@ fi
 before=$(cat "$STATE")
 printf '%s' "$now" > "$STATE"
 
-# lastMessage prints the first line of a session's latest message, unstyled.
-lastMessage() {
-  local cwd=$1 sid=$2 file
-  file="$HOME/.claude/projects/$(printf '%s' "$cwd" | tr '/.' '--')/$sid.jsonl"
-  [ -f "$file" ] || return
-  "$JQ" -rs '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | last // empty' "$file" 2>/dev/null |
-    grep -v '^[[:space:]]*$' | head -n 1 | sed -E 's/[*`_#>]//g; s/^[-[:space:]]+//' | cut -c1-180
-}
-
 notify() {
   local id=$1 title=$2 name=$3 body=$4 sound=$5
   if [ -n "$DRY_RUN" ]; then
@@ -76,7 +66,7 @@ printf '%s' "$now" | "$JQ" -r --argjson before "$before" '
   | select(.value.state != "done" or ($before[.key] != null))
   | [.key, .value.state, .value.name, .value.cwd, .value.sessionId] | @tsv' |
 while IFS=$'\t' read -r id state name cwd sid; do
-  body=$(lastMessage "$cwd" "$sid")
+  body=$(last_message_line "$cwd" "$sid")
   if [ "$state" = done ]; then
     notify "$id" "✅ Agent finished" "$name" "$body" Glass
   else

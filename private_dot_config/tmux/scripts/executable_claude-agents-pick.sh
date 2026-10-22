@@ -8,35 +8,21 @@
 #
 # fzf calls back into this script with --preview and a session id.
 
-JQ=$(command -v jq || echo /opt/homebrew/bin/jq)
-CLAUDE=$(command -v claude || echo "$HOME/.local/bin/claude")
+. "$(dirname "$0")/claude-common.sh"
 SELF="$0"
 
 session() { "$JQ" -c --arg id "$1" '.[] | select(.id == $id)' "$AGENTS_FILE"; }
 
-# transcript is where Claude Code keeps a session's log: under ~/.claude/projects,
-# in a folder named for its working directory with / and . as -.
-transcript() {
-  local cwd=$1 sid=$2
-  printf '%s/.claude/projects/%s/%s.jsonl' "$HOME" "$(printf '%s' "$cwd" | tr '/.' '--')" "$sid"
-}
-
 preview() {
-  local s cwd sid file
+  local s
   s=$(session "$1")
   printf '%s' "$s" | "$JQ" -r '
     "\(.name // .id)",
     "\(.state) · started \((.startedAt / 1000) | strflocaltime("%a %d %b %H:%M")) · \(.cwd)",
     "attach: claude attach \(.id)",
-    ""'
-  cwd=$(printf '%s' "$s" | "$JQ" -r .cwd)
-  sid=$(printf '%s' "$s" | "$JQ" -r .sessionId)
-  file=$(transcript "$cwd" "$sid")
-  if [ -f "$file" ]; then
-    echo "── latest message ──"
-    "$JQ" -r 'select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text' "$file" 2>/dev/null |
-      tail -n 60
-  fi
+    "",
+    "── latest message ──"'
+  last_message "$(printf '%s' "$s" | "$JQ" -r .cwd)" "$(printf '%s' "$s" | "$JQ" -r .sessionId)"
 }
 
 case "$1" in
