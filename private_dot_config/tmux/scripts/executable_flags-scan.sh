@@ -77,16 +77,20 @@ for repo in $FLAGS_REPOS; do
 done
 [ -s "$WORK/added.tsv" ] || { echo "No flags found for $FLAGS_AUTHOR in: $FLAGS_REPOS" >&2; exit 1; }
 
-# Split: each flag still in the code, in each environment. A 404 means the
-# flag isn't set up there.
+# Split: each flag in each environment, including flags gone from the code
+# (still in Split, they're ghosts). A 404 means the flag isn't set up there.
+# Flags gone from both the code and Split are retired: they're carried over
+# from the last scan, not asked about again.
 mkdir -p "$WORK/split"
+"$JQ" -r '.flags[] | select((.inCode | not) and .split != null and all(.split[]; .state == "none")) | .name' \
+  "$FLAGS_STORE" 2>/dev/null > "$WORK/retired"
 key=$(split_key)
 if [ -n "$key" ] && [ -n "$SPLIT_WORKSPACE" ]; then
   api="https://api.split.io/internal/api/v2"
   curl -sf --max-time 10 -H "Authorization: Bearer $key" "$api/environments/ws/$SPLIT_WORKSPACE" |
     "$JQ" -r --argjson want "$(printf '%s\n' "${FLAGS_ENVS[@]}" | "$JQ" -R . | "$JQ" -s .)" \
       '.[] | select(.name as $n | $want | index($n)) | "\(.id)\t\(.name)"' > "$WORK/envs.tsv"
-  awk -F'\t' '$5 == "" { print $1 }' "$WORK/added.tsv" | sort -u | while read -r name; do
+  cut -f1 "$WORK/added.tsv" | sort -u | grep -v -x -F -f "$WORK/retired" | while read -r name; do
     while IFS=$'\t' read -r env_id env_name; do
       printf '%s\t%s\t%s\n' "$name" "$env_id" "$env_name"
     done < "$WORK/envs.tsv"
@@ -117,6 +121,9 @@ for f in "$WORK"/split/*.code; do
   esac
   printf '%s\t%s\t%s\n' "${base%.*}" "${base##*.}" "$(printf '%s' "$def" | "$JQ" -c .)"
 done > "$WORK/split.tsv"
+while read -r name; do
+  for env in "${FLAGS_ENVS[@]}"; do printf '%s\t%s\tnull\n' "$name" "$env"; done
+done < "$WORK/retired" >> "$WORK/split.tsv"
 
 "$JQ" -n \
   --rawfile added "$WORK/added.tsv" \
@@ -160,7 +167,9 @@ done > "$WORK/split.tsv"
       .[0][0] as $name
       | {name: $name,
          added: (map(.[2]) | min),
-         inCode: any(.[]; .[4] == ""),
+         # Still registered in any repo, by anyone: a registration by a teammate
+         # elsewhere keeps the flag alive even after you removed yours.
+         inCode: (any(.[]; .[4] == "") or ($reg | keys | any(endswith("/" + $name)))),
          repos: map({repo: .[1], added: .[2], commit: .[3], removed: (if .[4] == "" then null else .[4] end)}
                     + ($reg["\(.[1])/\($name)"] // {}))
                 | sort_by(.added),

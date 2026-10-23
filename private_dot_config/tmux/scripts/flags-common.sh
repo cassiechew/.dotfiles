@@ -7,6 +7,7 @@ JQ=$(command -v jq || echo /opt/homebrew/bin/jq)
 FLAGS_DIR="$HOME/.local/share/flags"
 FLAGS_STORE="$FLAGS_DIR/flags.json"
 FLAGS_NOTES="$FLAGS_DIR/notes.json"
+FLAGS_ACTIONS="$FLAGS_DIR/actions.json"
 # The environments shown, in promotion order, by their Split names.
 FLAGS_ENVS=(QA UAT Production)
 

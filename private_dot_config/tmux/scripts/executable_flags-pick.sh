@@ -3,6 +3,11 @@
 # for, its tickets and where it's on in Split.
 #
 #   ↑/↓  move          enter  open the flag in Harness
+#   x    retire it: what that means depends on where the flag is
+#        - on for everyone in Production: confirm, then a background agent
+#          files a cleanup ticket and runs /ticket:run to take it out of the code
+#        - a ghost (gone from the code, still in Split, unread for 14 days):
+#          open it in Harness to delete. One still being read (👀) is left alone.
 #   y    copy its name         t  open its ticket
 #   n    write a note on it    ctrl-a  show removed flags too
 #   ctrl-r  refresh now        esc  close
@@ -12,7 +17,7 @@
 # redraws itself when it lands (fzf listens on a local port for that).
 #
 # fzf calls back into this script with --list, --header, --preview, --open,
-# --ticket, --note, --toggle-all and --refresh.
+# --retire, --ticket, --note, --toggle-all and --refresh.
 
 . "$(dirname "$0")/flags-common.sh"
 SELF="$0"
@@ -20,28 +25,51 @@ SCAN="$(dirname "$0")/flags-scan.sh"
 REFRESH_MINUTES=10
 
 notes() { cat "$FLAGS_NOTES" 2>/dev/null || echo '{}'; }
+# actions records the retirements started from here: {flag: {started, session}}.
+actions() { cat "$FLAGS_ACTIONS" 2>/dev/null || echo '{}'; }
 
-# icon is a flag's Production state at a glance.
-ICONS='def icon: if . == null then "🗑️" elif all(.[]; .state == "none") then "👻" else
-    (map(select(.env == "Production"))[0] // {state: "none"}).state as $s
-    | {on: "🟢", targeted: "🎯", off: "⚪", split: "🎲", killed: "🔴", none: "·", error: "⚠️"}[$s] // "·" end;'
+# kind is where a flag is in its life, and icon shows it. A phantom is in the
+# code but in no Split environment (it always serves control); a ghost is gone
+# from the code but still in Split; retired is gone from both.
+LIFECYCLE='
+  def prod: (.split // [] | map(select(.env == "Production"))[0]) // {state: "none"};
+  def nowhere: .split != null and all(.split[]; .state == "none");
+  def lastread: [.split[]? | .lastSeen // empty] | max;
+  # Split still seeing evaluations means something reads the flag: another
+  # service, or a deploy older than the removal. Deleting it would flip that
+  # reader to control, so a ghost only counts once it has been quiet 14 days.
+  def quiet: lastread == null or ((now - (lastread | fromdate)) > 14 * 86400);
+  def kind:
+    if (.inCode | not) then
+      if .split == null then "removed" elif nowhere then "retired" elif quiet then "ghost" else "read" end
+    elif $actions[.name] then "retiring"
+    elif nowhere then "phantom"
+    else prod.state end;
+  def cleanup: .inCode and prod.state == "on" and (prod.updated // null) != null
+    and ((now - (prod.updated | fromdate)) > 30 * 86400);
+  def icon: {removed: "🗑️", retired: "✅", ghost: "👻", read: "👀", retiring: "🛠️", phantom: "🫥",
+    on: "🟢", targeted: "🎯", off: "⚪", split: "🎲", killed: "🔴", none: "·", error: "⚠️"}[kind] // "·";
+  def ago: if . == null then "never" else ((now - fromdate) / 86400 | floor) as $d
+    | if $d == 0 then "today" elif $d == 1 then "yesterday" else "\($d) days ago" end end;'
 
-# cleanup: on for everyone in Production, unchanged for 30 days.
-CLEANUP='def cleanup: (.split // [] | map(select(.env == "Production"))[0]) as $p
-    | $p.state == "on" and ($p.updated // null) != null
-      and ((now - ($p.updated | fromdate)) > 30 * 86400);'
+# flag runs a jq program on one flag, with the lifecycle helpers and the
+# notes and actions in scope.
+flag() {
+  "$JQ" -r --arg name "$1" --argjson notes "$(notes)" --argjson actions "$(actions)" \
+    "$LIFECYCLE .scanned as \$scanned | .flags[] | select(.name == \$name) | $2" "$FLAGS_STORE"
+}
 
 # The popup's own state: whether removed flags are shown. Exported so fzf's
-# callbacks into this script see the same files.
+# callbacks into this script see the same file.
 show_all() { [ -n "$FLAGS_SHOW_ALL" ] && [ -e "$FLAGS_SHOW_ALL" ]; }
 
 list() {
   local all=""
   show_all && all=all
-  "$JQ" -r --arg all "$all" --argjson notes "$(notes)" "$ICONS $CLEANUP"'
+  "$JQ" -r --arg all "$all" --argjson notes "$(notes)" --argjson actions "$(actions)" "$LIFECYCLE"'
     .flags[] | select($all == "all" or .inCode)
     | [.name,
-       "\(.split | icon) \(.name)\(if cleanup then " 🧹" else "" end)\(if $notes[.name] then " 📝" else "" end)",
+       "\(icon) \(.name)\(if cleanup and kind != "retiring" then " 🧹" else "" end)\(if $notes[.name] then " 📝" else "" end)",
        (.repos | map(.repo) | unique | join(" ")),
        .added]
     | @tsv' "$FLAGS_STORE"
@@ -57,52 +85,126 @@ header() {
     *) status="✨ updated $when" ;;
   esac
   printf '%s\n%s' \
-    "$status · enter open in Harness · y copy · t ticket · n note · ctrl-a removed too · ctrl-r refresh" \
-    "🟢 on 🎯 targeted ⚪ off · not in Prod 👻 not in Split 🔴 killed 🧹 time to remove 📝 note"
+    "$status · enter Harness · x retire · y copy · t ticket · n note · ctrl-a removed too · ctrl-r refresh" \
+    "🟢 on 🎯 targeted ⚪ off · not in Prod 🧹 time to retire 🛠️ retiring 🫥 phantom 👻 ghost 👀 still read ✅ retired 📝 note"
 }
 
 preview() {
-  "$JQ" -r --arg name "$1" --argjson notes "$(notes)" "$ICONS $CLEANUP"'
-    def ago: if . == null then "never" else ((now - fromdate) / 86400 | floor) as $d
-      | if $d == 0 then "today" elif $d == 1 then "yesterday" else "\($d) days ago" end end;
-    .flags[] | select(.name == $name)
-    | "\(.split | icon) \(.name)",
-      "added \(.added)" + (if .tickets | length > 0 then " · " + (.tickets | join(", ")) else "" end),
-      (if cleanup then "🧹 on for everyone in Production for 30+ days: time to remove it?" else empty end),
-      (if $notes[.name] then "", "📝 \($notes[.name])" else empty end),
-      "",
-      (.why // "(no comment above it in flags.ts)"),
-      "",
-      "Split",
-      (if .split == null then "  (not checked: the flag is gone from the code)"
-       else .split[] | "  \(.env | . + " " * (11 - length))\(.text)\(if .lastSeen then " · last evaluated \(.lastSeen | ago)" else "" end)",
-         (.rules // [] | .[] | "      → \(.)") end),
-      "",
-      "Repos",
-      (.repos[] | "  \(.repo | . + " " * (10 - length))added \(.added) (\(.commit))"
-         + (if .ticket and .ticket != "" then " · \(.ticket)" else "" end)
-         + (if .removed then " · removed \(.removed)" else "" end))' "$FLAGS_STORE"
+  flag "$1" '
+    "\(icon) \(.name)",
+    "added \(.added)" + (if .tickets | length > 0 then " · " + (.tickets | join(", ")) else "" end),
+    ({retiring: "🛠️ retirement started \($actions[.name].started) (agent: \($actions[.name].session))",
+      phantom: "🫥 phantom: in the code but in no Split environment, so it always serves control",
+      ghost: "👻 ghost: gone from the code, still in Split, and not evaluated for 14+ days. x opens it in Harness to delete",
+      read: "👀 gone from the code, but Split saw it evaluated \(lastread | ago). Something outside these flags.ts files, or a deploy older than the removal, still reads it: find that before deleting it",
+      retired: "✅ retired: gone from the code and from Split",
+      removed: "🗑️ gone from the code (ctrl-r checks whether it is still in Split)"}[kind] // empty),
+    (if cleanup and kind != "retiring" then "🧹 on for everyone in Production for 30+ days: x retires it" else empty end),
+    (if $notes[.name] then "", "📝 \($notes[.name])" else empty end),
+    "",
+    (.why // "(no comment above it in flags.ts)"),
+    "",
+    "Split",
+    (if .split == null then "  (not checked yet)"
+     else .split[] | "  \(.env | . + " " * (11 - length))\(.text)\(if .lastSeen then " · last evaluated \(.lastSeen | ago)" else "" end)",
+       (.rules // [] | .[] | "      → \(.)") end),
+    "",
+    "Repos",
+    (.repos[] | "  \(.repo | . + " " * (10 - length))added \(.added) (\(.commit))"
+       + (if .ticket and .ticket != "" then " · \(.ticket)" else "" end)
+       + (if .removed then " · removed \(.removed)" else "" end))'
 }
 
 # open_flag opens the flag's Harness page in the furthest environment it's
 # set up in: Production, then UAT, then QA.
 open_flag() {
   local path
-  path=$("$JQ" -r --arg name "$1" '
-    .flags[] | select(.name == $name) | .split // [] | map(select(.id and .envId)) | last
-    | if . then "/splits/\(.id)/env/\(.envId)/definition" else empty end' "$FLAGS_STORE")
+  path=$(flag "$1" '.split // [] | map(select(.id and .envId)) | last
+    | if . then "/splits/\(.id)/env/\(.envId)/definition" else empty end')
   if [ -z "$FME_URL" ]; then
     tmux display-message "Set FME_URL in ~/.config/tmux/work.env to open flags in Harness"
   elif [ -n "$path" ]; then
     open "$FME_URL$path"
   else
-    tmux display-message "👻 $1 isn't set up in Split, so there's no page to open"
+    tmux display-message "🫥 $1 isn't set up in Split, so there's no page to open"
   fi
+}
+
+# retire_prompt briefs the agent that takes a fully rolled out flag out of
+# the code.
+retire_prompt() {
+  flag "$1" '
+    "Retire the feature flag `\(.name)`: it is fully rolled out, so take it out of the code and keep the behaviour it gates as the only behaviour.",
+    "",
+    "What my flag registry knows (scanned \($scanned)):",
+    "- What it was for: \(.why // "(no comment above it in flags.ts)")",
+    "- Registered in: " + ([.repos[] | select(.removed == null) | "\(.repo) (added \(.added)\(if .ticket and .ticket != "" then ", \(.ticket)" else "" end))"] | join(", ")),
+    "- Original tickets: \(if .tickets | length > 0 then .tickets | join(", ") else "none recorded" end)",
+    "- Split: " + ([.split[] | "\(.env) \(.text)"] | join("; ")) + "; Production unchanged since \(prod.updated // "unknown")",
+    "",
+    "How:",
+    "1. Check it is really fully on before touching anything. Read its definitions with the Harness MCP (harness_list on fme_feature_flag_definition with filters {\"feature_flag_name\": \"\(.name)\"}) and confirm Production serves on to everyone: no targeting rules, not killed. If it does not, stop and tell me what you found.",
+    "2. Find every use, not only the repos above: git grep the flag name on origin/main across the repos under ~/projects, since a frontend can read a backend flag. Never read a possibly stale worktree.",
+    "3. File a GO chore ticket for the cleanup in the current sprint, intent first (\"Remove the \(.name) flag now it is fully rolled out\"), linked to the original ticket.",
+    "4. Run /ticket:run on that ticket and follow every gate. The change: remove the flag from each repo flags.ts and every call site, keep the on path, delete the off path and the tests that only cover it, and update tests that toggle the flag.",
+    "5. Leave Split alone. Deleting the flag in Harness comes after the code is merged and deployed, and I will do it.",
+    "",
+    "Ask me before anything outward-facing that /ticket:run does not already cover."'
+}
+
+# start_retirement confirms, then hands the flag to a background agent and
+# records it so the list shows it as retiring.
+start_retirement() {
+  local name=$1 repos since answer claude session out tmp
+  repos=$(flag "$name" '[.repos[] | select(.removed == null) | .repo] | join(", ")')
+  since=$(flag "$name" 'prod.updated // "unknown" | .[0:10]')
+  printf '\n  🧹 Retire %s?\n\n' "$name"
+  printf '  Production serves on to everyone (unchanged since %s).\n' "$since"
+  printf '  A background agent will:\n'
+  printf '    1. re-check that in Harness, and stop if it is not so\n'
+  printf '    2. file a cleanup ticket in the current sprint\n'
+  printf '    3. run /ticket:run on it: take the flag out of %s, keeping the on path\n' "$repos"
+  printf '  It leaves Split alone. Once the PRs are merged the flag shows 👻 here,\n'
+  printf '  and x then opens it in Harness to delete.\n\n'
+  printf '  Start it? [y/N] '
+  read -rsn1 answer
+  [ "$answer" = y ] || [ "$answer" = Y ] || return
+
+  claude=$(command -v claude || echo "$HOME/.local/bin/claude")
+  session="Retire flag: $name"
+  # Opus: it decides what the off path is and deletes code across repos.
+  if out=$(cd "$HOME/projects" && "$claude" --bg --model opus -n "${session:0:70}" "$(retire_prompt "$name")" 2>&1); then
+    tmp=$(mktemp "$FLAGS_DIR/actions.XXXXXX")
+    actions | "$JQ" --arg name "$name" --arg session "$session" --arg started "$(date +%F)" \
+      '.[$name] = {started: $started, session: $session}' > "$tmp" && mv "$tmp" "$FLAGS_ACTIONS"
+    tmux display-message "🛠️ Retiring $name in the background. See: prefix+G"
+  else
+    printf '%s\n%s\n' "$(date)" "$out" >> "$HOME/.cache/flags-retire.log"
+    tmux display-message "Couldn't start the agent (see ~/.cache/flags-retire.log)"
+  fi
+}
+
+# retire does what retiring means for the flag where it is now.
+retire() {
+  local name=$1 kind
+  kind=$(flag "$name" 'kind')
+  case "$kind" in
+    on) start_retirement "$name" ;;
+    ghost)
+      open_flag "$name"
+      tmux display-message "👻 $name is gone from the code: delete it in Harness (each environment, then the flag)" ;;
+    read) tmux display-message "👀 Something still evaluates $name, so it isn't safe to delete yet (see the preview)" ;;
+    retiring) tmux display-message "🛠️ $name is already being retired: see prefix+G" ;;
+    phantom) tmux display-message "🫥 $name was never set up in Split: create it there, or it always serves control" ;;
+    retired) tmux display-message "✅ $name is already retired" ;;
+    removed) tmux display-message "🗑️ $name is gone from the code; ctrl-r checks whether it's still in Split" ;;
+    *) tmux display-message "$name is still rolling out (Production: $kind), so there's nothing to retire yet" ;;
+  esac
 }
 
 open_ticket() {
   local ticket
-  ticket=$("$JQ" -r --arg name "$1" '.flags[] | select(.name == $name) | .tickets[-1] // empty' "$FLAGS_STORE")
+  ticket=$(flag "$1" '.tickets[-1] // empty')
   if [ -n "$ticket" ] && [ -n "$JIRA_URL" ]; then
     open "$JIRA_URL/browse/$ticket"
   else
@@ -160,6 +262,8 @@ case "$1" in
   --header) header "$2"; exit ;;
   --preview) preview "$2"; exit ;;
   --open) open_flag "$2"; exit ;;
+  --retire) retire "$2"; exit ;;
+  --retire-prompt) retire_prompt "$2"; exit ;;
   --ticket) open_ticket "$2"; exit ;;
   --note) note "$2"; exit ;;
   --toggle-all) toggle_all; exit ;;
@@ -190,6 +294,7 @@ list | fzf --listen --delimiter='\t' --with-nth=2,3,4 --tabstop=2 --reverse --no
   --preview="$SELF --preview {1}" --preview-window='right,55%,wrap,nohidden' \
   --bind="start:execute-silent($SELF --refresh \$FZF_PORT)" \
   --bind="enter:execute-silent($SELF --open {1})" \
+  --bind="x:execute($SELF --retire {1})+reload($SELF --list)" \
   --bind="y:execute-silent(printf %s {1} | pbcopy; tmux display-message 'Copied {1}')+abort" \
   --bind="t:execute-silent($SELF --ticket {1})" \
   --bind="n:execute($SELF --note {1})+reload($SELF --list)" \
