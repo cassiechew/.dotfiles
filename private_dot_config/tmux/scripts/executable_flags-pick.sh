@@ -2,14 +2,14 @@
 # prefix+F: the feature flags you've added, newest first, with what each is
 # for, its tickets and where it's on in Split.
 #
-#   ↑/↓  move          enter  open the flag in Harness
-#   x    retire it: what that means depends on where the flag is
+#   type to filter      enter  open the flag in Harness
+#   ctrl-x  retire it: what that means depends on where the flag is
 #        - on for everyone in Production: confirm, then a background agent
 #          files a cleanup ticket and runs /ticket:run to take it out of the code
 #        - a ghost (gone from the code, still in Split, unread for 14 days):
 #          open it in Harness to delete. One still being read (👀) is left alone.
-#   y    copy its name         t  open its ticket
-#   n    write a note on it    ctrl-a  show removed flags too
+#   ctrl-y  copy its name      ctrl-t  open its ticket
+#   ctrl-o  write a note on it ctrl-a  show removed flags too
 #   ctrl-r  refresh now        esc  close
 #
 # The list draws straight from flags-scan.sh's store. When the store is more
@@ -92,7 +92,8 @@ list() {
     | @tsv' "$FLAGS_STORE"
 }
 
-# header says how fresh the list is; "refreshing" while a scan runs.
+# header says how fresh the list is, for the label on the search box;
+# "refreshing" while a scan runs.
 header() {
   local when status
   when=$("$JQ" -r '.scanned | fromdate | strflocaltime("%a %-d %b %H:%M")' "$FLAGS_STORE" 2>/dev/null)
@@ -101,10 +102,14 @@ header() {
     failed) status="⚠️ refresh failed, showing $when" ;;
     *) status="✨ updated $when" ;;
   esac
-  printf '%s\n%s' \
-    "$status · enter Harness · x retire · y copy · t ticket · n note · ctrl-a removed too · ctrl-r refresh" \
-    "QA·UAT·Prod — in code: 🫥 not set up 🟢 on 🧹 on 30+ days 🛠️ retiring 🎯 targeted ⚪ off 🔴 killed · gone: 👀 still read 👻 safe to delete ✅ gone"
+  printf ' %s ' "$status"
 }
+
+# FOOTER explains the keys and the QA·UAT·Prod markers, in lines short
+# enough for the list beside the preview.
+FOOTER="⏎ Harness  ^x retire  ^y copy  ^t ticket  ^o note  ^a all  ^r refresh
+🫥 unset 🟢 on 🧹 retire 🛠️ retiring 🎯 targeted ⚪ off 🔴 killed
+gone from code: 👀 still read 👻 safe to delete ✅ gone · QA·UAT·Prod"
 
 preview() {
   flag "$1" '
@@ -112,12 +117,12 @@ preview() {
     "added \(.added)" + (if .tickets | length > 0 then " · " + (.tickets | join(", ")) else "" end),
     ({retiring: "🛠️ retirement started \($actions[.name].started) (agent: \($actions[.name].session))",
       phantom: "🫥 phantom: in the code but in no Split environment, so it always serves control",
-      ghost: ("👻 ghost: gone from the code, still in Split, and not evaluated in Production for 14+ days. x opens it in Harness to delete"
+      ghost: ("👻 ghost: gone from the code, still in Split, and not evaluated in Production for 14+ days. ctrl-x opens it in Harness to delete"
         + (if (testreads | length) > 0 then " (\(testreads | join(" and ")) still read it)" else "" end)),
       read: "👀 gone from the code, but Split saw it evaluated in Production \(lastread | ago). Something outside these flags.ts files still reads it: find that before deleting it",
       retired: "✅ retired: gone from the code and from Split",
       removed: "🗑️ gone from the code (ctrl-r checks whether it is still in Split)"}[kind] // empty),
-    (if cleanup and kind != "retiring" then "🧹 on for everyone in Production for 30+ days: x retires it" else empty end),
+    (if cleanup and kind != "retiring" then "🧹 on for everyone in Production for 30+ days: ctrl-x retires it" else empty end),
     (if $notes[.name] then "", "📝 \($notes[.name])" else empty end),
     "",
     (.why // "(no comment above it in flags.ts)"),
@@ -183,7 +188,7 @@ start_retirement() {
   printf '    2. file a cleanup ticket in the current sprint\n'
   printf '    3. run /ticket:run on it: take the flag out of %s, keeping the on path\n' "$repos"
   printf '  It leaves Split alone. Once the PRs are merged the flag shows 👻 here,\n'
-  printf '  and x then opens it in Harness to delete.\n\n'
+  printf '  and ctrl-x then opens it in Harness to delete.\n\n'
   printf '  Start it? [y/N] '
   read -rsn1 answer
   [ "$answer" = y ] || [ "$answer" = Y ] || return
@@ -247,8 +252,8 @@ toggle_all() {
 }
 
 # tell sends fzf an action through its --listen port; quietly does nothing
-# once the popup has closed. change-header goes last in its "action:text"
-# form, since the header has parentheses in it.
+# once the popup has closed. change-input-label goes last in its
+# "action:text" form, so the label can hold any characters.
 tell() {
   curl -s --max-time 2 -X POST "http://127.0.0.1:$PORT" -d "$1" >/dev/null 2>&1
 }
@@ -264,7 +269,7 @@ refresh() {
   (
     # Keep going when the popup closes: its terminal hangs up on the way out.
     trap '' HUP
-    tell "change-header:$(header refreshing)"
+    tell "change-input-label:$(header refreshing)"
     if [ -d "$FLAGS_DIR/.scanning" ]; then
       for _ in $(seq 600); do [ -d "$FLAGS_DIR/.scanning" ] || break; sleep 1; done
       result="done"
@@ -273,7 +278,7 @@ refresh() {
     else
       result=failed
     fi
-    tell "reload($SELF --list)+change-header:$(header "$result")"
+    tell "reload($SELF --list)+change-input-label:$(header "$result")"
   ) </dev/null >/dev/null 2>&1 &
 }
 
@@ -309,14 +314,17 @@ trap 'rm -f "$FLAGS_SHOW_ALL"' EXIT
 
 # --listen picks a free port and hands it to callbacks as $FZF_PORT; the
 # start event uses it to launch the background refresh.
-list | fzf --listen --delimiter='\t' --with-nth=2,3,4 --tabstop=2 --reverse --no-sort \
-  --header="$(header)" --header-first \
+# Actions are on ctrl keys so every letter still types into the search.
+list | fzf --listen --delimiter='\t' --with-nth=2,3,4 --tabstop=2 --reverse --no-sort --no-multi \
+  --prompt='🔍 ' --ghost='filter flags' --info=inline-right \
+  --input-border=rounded --input-label="$(header)" --input-label-pos=2 \
+  --footer="$FOOTER" --footer-border=rounded \
   --preview="$SELF --preview {1}" --preview-window='right,55%,wrap,nohidden' \
   --bind="start:execute-silent($SELF --refresh \$FZF_PORT)" \
   --bind="enter:execute-silent($SELF --open {1})" \
-  --bind="x:execute($SELF --retire {1})+reload($SELF --list)" \
-  --bind="y:execute-silent(printf %s {1} | pbcopy; tmux display-message 'Copied {1}')+abort" \
-  --bind="t:execute-silent($SELF --ticket {1})" \
-  --bind="n:execute($SELF --note {1})+reload($SELF --list)" \
+  --bind="ctrl-x:execute($SELF --retire {1})+reload($SELF --list)" \
+  --bind="ctrl-y:execute-silent(printf %s {1} | pbcopy; tmux display-message 'Copied {1}')+abort" \
+  --bind="ctrl-t:execute-silent($SELF --ticket {1})" \
+  --bind="ctrl-o:execute($SELF --note {1})+reload($SELF --list)" \
   --bind="ctrl-a:execute-silent($SELF --toggle-all)+reload($SELF --list)" \
   --bind="ctrl-r:execute-silent($SELF --refresh \$FZF_PORT force)"
