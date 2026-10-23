@@ -147,7 +147,8 @@ done > "$WORK/split.tsv"
                ] | join(" and ")) as $when
              | "\($to) when \($when)"]}
         end
-      | . + {updated: (if $def.lastUpdateTime then ($def.lastUpdateTime / 1000 | todate) else null end),
+      | . + {id: $def.id, envId: $def.environment.id,
+             updated: (if $def.lastUpdateTime then ($def.lastUpdateTime / 1000 | todate) else null end),
              lastSeen: (if ($def.lastTrafficReceivedAt // 0) > 0 then ($def.lastTrafficReceivedAt / 1000 | todate) else null end)}
     end;
 
