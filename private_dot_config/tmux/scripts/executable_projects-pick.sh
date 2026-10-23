@@ -20,7 +20,7 @@
 SELF="$0"
 INBOX=$(command -v inbox || echo "$HOME/.local/bin/inbox")
 PROJECTS_FILE=${PROJECTS_FILE:-$HOME/projects/.projects.json}
-STATUSES=(active exploring proposed done)
+STATUSES=(active exploring proposed "done")
 
 # Telescope-style boxes, matching nvim's "center" layout: preview on top, then
 # the prompt, then the results. nohidden overrides FZF_DEFAULT_OPTS, which

@@ -67,7 +67,7 @@ printf '%s' "$now" | "$JQ" -r --argjson before "$before" '
   | [.key, .value.state, .value.name, .value.cwd, .value.sessionId] | @tsv' |
 while IFS=$'\t' read -r id state name cwd sid; do
   body=$(last_message_line "$cwd" "$sid")
-  if [ "$state" = done ]; then
+  if [ "$state" = "done" ]; then
     notify "$id" "✅ Agent finished" "$name" "$body" Glass
   else
     notify "$id" "⏳ Agent needs you" "$name" "$body" Ping

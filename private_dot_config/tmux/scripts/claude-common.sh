@@ -1,7 +1,9 @@
+# shellcheck shell=bash
 # Shared by the Claude agent scripts (claude-agents-pick.sh, agent-watch.sh,
 # projects-pick.sh). Source it; don't run it.
 
 JQ=$(command -v jq || echo /opt/homebrew/bin/jq)
+# shellcheck disable=SC2034  # used by the scripts that source this file
 CLAUDE=$(command -v claude || echo "$HOME/.local/bin/claude")
 
 # transcript_path prints where Claude Code keeps a session's log: under

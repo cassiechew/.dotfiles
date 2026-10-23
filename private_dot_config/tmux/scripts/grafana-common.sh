@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared by grafana-alerts.sh (the status badge) and grafana-alerts-pick.sh
 # (the prefix+A popup). Source it; don't run it.
 #

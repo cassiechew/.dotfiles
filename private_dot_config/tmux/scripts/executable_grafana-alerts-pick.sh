@@ -15,9 +15,9 @@ alert() { "$JQ" ".[$1]" "$ALERTS_FILE"; }
 
 # age prints how long ago an ISO-8601 UTC time was, like "2h 5m".
 age() {
-  local then mins
-  then=$(date -j -u -f "%Y-%m-%dT%H:%M:%S" "${1%%.*}" +%s 2>/dev/null) || return
-  mins=$(( ($(date +%s) - then) / 60 ))
+  local started mins
+  started=$(date -j -u -f "%Y-%m-%dT%H:%M:%S" "${1%%.*}" +%s 2>/dev/null) || return
+  mins=$(( ($(date +%s) - started) / 60 ))
   if (( mins >= 1440 )); then printf '%dd %dh' $((mins / 1440)) $((mins % 1440 / 60))
   elif (( mins >= 60 )); then printf '%dh %dm' $((mins / 60)) $((mins % 60))
   else printf '%dm' "$mins"; fi
