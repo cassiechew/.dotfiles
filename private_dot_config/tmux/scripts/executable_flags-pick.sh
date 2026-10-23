@@ -34,11 +34,13 @@ actions() { cat "$FLAGS_ACTIONS" 2>/dev/null || echo '{}'; }
 LIFECYCLE='
   def prod: (.split // [] | map(select(.env == "Production"))[0]) // {state: "none"};
   def nowhere: .split != null and all(.split[]; .state == "none");
-  def lastread: [.split[]? | .lastSeen // empty] | max;
-  # Split still seeing evaluations means something reads the flag: another
-  # service, or a deploy older than the removal. Deleting it would flip that
-  # reader to control, so a ghost only counts once it has been quiet 14 days.
-  def quiet: lastread == null or ((now - (lastread | fromdate)) > 14 * 86400);
+  def lastread: prod.lastSeen;
+  def recent: . != null and ((now - fromdate) < 14 * 86400);
+  # Split still seeing Production evaluations means something there reads the
+  # flag. Deleting it would flip that reader to control, so a ghost only counts
+  # once Production has been quiet 14 days. QA and UAT reads are only noted.
+  def quiet: lastread | recent | not;
+  def testreads: [.split[]? | select(.env != "Production" and (.lastSeen | recent)) | .env];
   def kind:
     if (.inCode | not) then
       if .split == null then "removed" elif nowhere then "retired" elif quiet then "ghost" else "read" end
@@ -95,8 +97,9 @@ preview() {
     "added \(.added)" + (if .tickets | length > 0 then " · " + (.tickets | join(", ")) else "" end),
     ({retiring: "🛠️ retirement started \($actions[.name].started) (agent: \($actions[.name].session))",
       phantom: "🫥 phantom: in the code but in no Split environment, so it always serves control",
-      ghost: "👻 ghost: gone from the code, still in Split, and not evaluated for 14+ days. x opens it in Harness to delete",
-      read: "👀 gone from the code, but Split saw it evaluated \(lastread | ago). Something outside these flags.ts files, or a deploy older than the removal, still reads it: find that before deleting it",
+      ghost: ("👻 ghost: gone from the code, still in Split, and not evaluated in Production for 14+ days. x opens it in Harness to delete"
+        + (if (testreads | length) > 0 then " (\(testreads | join(" and ")) still read it)" else "" end)),
+      read: "👀 gone from the code, but Split saw it evaluated in Production \(lastread | ago). Something outside these flags.ts files still reads it: find that before deleting it",
       retired: "✅ retired: gone from the code and from Split",
       removed: "🗑️ gone from the code (ctrl-r checks whether it is still in Split)"}[kind] // empty),
     (if cleanup and kind != "retiring" then "🧹 on for everyone in Production for 30+ days: x retires it" else empty end),
