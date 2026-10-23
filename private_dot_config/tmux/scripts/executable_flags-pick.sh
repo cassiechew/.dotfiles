@@ -49,8 +49,19 @@ LIFECYCLE='
     else prod.state end;
   def cleanup: .inCode and prod.state == "on" and (prod.updated // null) != null
     and ((now - (prod.updated | fromdate)) > 30 * 86400);
-  def icon: {removed: "🗑️", retired: "✅", ghost: "👻", read: "👀", retiring: "🛠️", phantom: "🫥",
-    on: "🟢", targeted: "🎯", off: "⚪", split: "🎲", killed: "🔴", none: "·", error: "⚠️"}[kind] // "·";
+  # marker flags what needs doing; blank (two cells, like an emoji) otherwise.
+  def marker: {removed: "🗑️", retired: "✅", ghost: "👻", read: "👀", retiring: "🛠️", phantom: "🫥"}[kind]
+    // (if cleanup then "🧹" else "  " end);
+  # lights is a traffic light per environment, QA, UAT, Production. In the
+  # code they show the rollout; gone from the code they show whether that
+  # environment still reads the flag.
+  def lights: .inCode as $live
+    | if .split == null then "⚫⚫⚫" else
+        [.split[] | if .state == "none" then "⚫"
+          elif ($live | not) then (if .lastSeen | recent then "🔴" else "🟢" end)
+          else {on: "🟢", targeted: "🟡", split: "🟡", off: "⚪", killed: "🔴", error: "⚠️"}[.state] // "⚫" end]
+        | join("") end;
+  def icon: "\(marker) \(lights)";
   def ago: if . == null then "never" else ((now - fromdate) / 86400 | floor) as $d
     | if $d == 0 then "today" elif $d == 1 then "yesterday" else "\($d) days ago" end end;'
 
@@ -71,7 +82,7 @@ list() {
   "$JQ" -r --arg all "$all" --argjson notes "$(notes)" --argjson actions "$(actions)" "$LIFECYCLE"'
     .flags[] | select($all == "all" or .inCode)
     | [.name,
-       "\(icon) \(.name)\(if cleanup and kind != "retiring" then " 🧹" else "" end)\(if $notes[.name] then " 📝" else "" end)",
+       "\(icon) \(.name)\(if $notes[.name] then " 📝" else "" end)",
        (.repos | map(.repo) | unique | join(" ")),
        .added]
     | @tsv' "$FLAGS_STORE"
@@ -88,7 +99,7 @@ header() {
   esac
   printf '%s\n%s' \
     "$status · enter Harness · x retire · y copy · t ticket · n note · ctrl-a removed too · ctrl-r refresh" \
-    "🟢 on 🎯 targeted ⚪ off · not in Prod 🧹 time to retire 🛠️ retiring 🫥 phantom 👻 ghost 👀 still read ✅ retired 📝 note"
+    "lights QA·UAT·Prod: 🟢 on 🟡 targeted ⚪ off 🔴 killed ⚫ not set up · gone from code: 🟢 quiet 🔴 still read · 🧹 retire 🛠️ retiring 🫥 phantom 👻 ghost 👀 Prod reads ✅ retired"
 }
 
 preview() {
