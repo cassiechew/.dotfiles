@@ -49,19 +49,23 @@ LIFECYCLE='
     else prod.state end;
   def cleanup: .inCode and prod.state == "on" and (prod.updated // null) != null
     and ((now - (prod.updated | fromdate)) > 30 * 86400);
-  # marker flags what needs doing; blank (two cells, like an emoji) otherwise.
-  def marker: {removed: "🗑️", retired: "✅", ghost: "👻", read: "👀", retiring: "🛠️", phantom: "🫥"}[kind]
-    // (if cleanup then "🧹" else "  " end);
-  # lights is a traffic light per environment, QA, UAT, Production. In the
-  # code they show the rollout; gone from the code they show whether that
-  # environment still reads the flag.
-  def lights: .inCode as $live
-    | if .split == null then "⚫⚫⚫" else
-        [.split[] | if .state == "none" then "⚫"
-          elif ($live | not) then (if .lastSeen | recent then "🔴" else "🟢" end)
-          else {on: "🟢", targeted: "🟡", split: "🟡", off: "⚪", killed: "🔴", error: "⚠️"}[.state] // "⚫" end]
+  # icon is a marker per environment, QA, UAT, Production, saying what the
+  # flag is there. In the code: 🫥 not set up (serves control), 🟢 on for
+  # everyone (🧹 in Production once unchanged 30 days, 🛠️ while an agent retires it),
+  # 🎯 targeted, ⚪ off, 🔴 killed. Gone from the code: ✅ not set up,
+  # 👀 still read in the last 14 days, 👻 quiet, so safe to delete.
+  def old: . != null and ((now - fromdate) > 30 * 86400);
+  def icon: .inCode as $live | (kind == "retiring") as $retiring
+    | if .split == null then "❔❔❔" else
+        [.split[] |
+          if $live then
+            if .state == "none" then "🫥"
+            elif .state == "on" then (if $retiring then "🛠️" elif .env == "Production" and (.updated | old) then "🧹" else "🟢" end)
+            else {targeted: "🎯", split: "🎯", off: "⚪", killed: "🔴", error: "⚠️"}[.state] // "❔" end
+          elif .state == "none" then "✅"
+          elif (.lastSeen | recent) then "👀"
+          else "👻" end]
         | join("") end;
-  def icon: "\(marker) \(lights)";
   def ago: if . == null then "never" else ((now - fromdate) / 86400 | floor) as $d
     | if $d == 0 then "today" elif $d == 1 then "yesterday" else "\($d) days ago" end end;'
 
@@ -99,7 +103,7 @@ header() {
   esac
   printf '%s\n%s' \
     "$status · enter Harness · x retire · y copy · t ticket · n note · ctrl-a removed too · ctrl-r refresh" \
-    "lights QA·UAT·Prod: 🟢 on 🟡 targeted ⚪ off 🔴 killed ⚫ not set up · gone from code: 🟢 quiet 🔴 still read · 🧹 retire 🛠️ retiring 🫥 phantom 👻 ghost 👀 Prod reads ✅ retired"
+    "QA·UAT·Prod — in code: 🫥 not set up 🟢 on 🧹 on 30+ days 🛠️ retiring 🎯 targeted ⚪ off 🔴 killed · gone: 👀 still read 👻 safe to delete ✅ gone"
 }
 
 preview() {
@@ -258,6 +262,8 @@ refresh() {
     return
   fi
   (
+    # Keep going when the popup closes: its terminal hangs up on the way out.
+    trap '' HUP
     tell "change-header:$(header refreshing)"
     if [ -d "$FLAGS_DIR/.scanning" ]; then
       for _ in $(seq 600); do [ -d "$FLAGS_DIR/.scanning" ] || break; sleep 1; done
