@@ -1,12 +1,7 @@
 # This is Git's per-user configuration file.
-[user]
-# Please adapt and uncomment the following lines:
-#	name = Cassie Chew
-#	email = cassiechew@pop-os.tail423cad.ts.net
-
+# user.email is set by the includes at the end of this file.
 [user]
 	name = Cassie Chew
-    email = cassie.chew@playhq.com
     signingkey = 0E704ADAEC60E663
 [color]
 	ui = true
@@ -53,3 +48,14 @@
     dshow = -c diff.external=difft show --ext-diff
 # [url "ssh://git@github.com/"]
 #     insteadOf = https://github.com/
+
+# Machine-local identity, untracked (the work email lives here):
+#   [user]
+#       email = you@work.example
+[include]
+	path = ~/.gitconfig.local
+
+# Repos pushed through the personal.github.com SSH alias commit with the
+# personal email. Last, so it wins over ~/.gitconfig.local.
+[includeIf "hasconfig:remote.*.url:git@personal.github.com:*/**"]
+	path = ~/.gitconfig-personal

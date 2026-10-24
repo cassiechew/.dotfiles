@@ -1,0 +1,3 @@
+# Vendored tmux plugins keep their own git internals, which record the
+# committer email in their reflogs. tpm manages them; keep them out of here.
+private_dot_config/tmux/plugins/**/dot_git
