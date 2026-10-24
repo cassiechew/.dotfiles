@@ -16,10 +16,16 @@
 
 flags_configured || { echo "Set FLAGS_REPOS and FLAGS_AUTHOR in ~/.config/tmux/work.env" >&2; exit 1; }
 mkdir -p "$FLAGS_DIR"
-# One scan at a time: a popup opened mid-scan shows the old store.
-mkdir "$FLAGS_DIR/.scanning" 2>/dev/null || exit 0
+# One scan at a time: a popup opened mid-scan shows the old store. The lock is
+# a symlink to this scan's pid (ln -s is atomic); a stale one is taken over.
+if ! ln -s "$$" "$FLAGS_LOCK" 2>/dev/null; then
+  scan_running && exit 0
+  rm -f "$FLAGS_LOCK"
+  ln -s "$$" "$FLAGS_LOCK" 2>/dev/null || exit 0
+fi
+rmdir "$FLAGS_DIR/.scanning" 2>/dev/null  # the old mkdir lock, if one was left
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/flags-scan.XXXXXX")
-trap 'rm -rf "$WORK"; rmdir "$FLAGS_DIR/.scanning"' EXIT
+trap 'rm -rf "$WORK"; rm -f "$FLAGS_LOCK"' EXIT
 
 # registered reads a flags.ts and prints each flag it registers, with the
 # comment above it (or beside it), its ticket and its created date, tab
@@ -85,11 +91,17 @@ mkdir -p "$WORK/split"
 "$JQ" -r '.flags[] | select((.inCode | not) and .split != null and all(.split[]; .state == "none")) | .name' \
   "$FLAGS_STORE" 2>/dev/null > "$WORK/retired"
 key=$(split_key)
+# Without Split every flag's state would be blanked, so keep the last store.
+if [ -z "$key" ] || [ -z "$SPLIT_WORKSPACE" ]; then
+  echo "Set SPLIT_API_KEY and SPLIT_WORKSPACE; keeping the last store" >&2
+  exit 1
+fi
 if [ -n "$key" ] && [ -n "$SPLIT_WORKSPACE" ]; then
   api="https://api.split.io/internal/api/v2"
   curl -sf --max-time 10 -H "Authorization: Bearer $key" "$api/environments/ws/$SPLIT_WORKSPACE" |
     "$JQ" -r --argjson want "$(printf '%s\n' "${FLAGS_ENVS[@]}" | "$JQ" -R . | "$JQ" -s .)" \
       '.[] | select(.name as $n | $want | index($n)) | "\(.id)\t\(.name)"' > "$WORK/envs.tsv"
+  [ -s "$WORK/envs.tsv" ] || { echo "Couldn't list Split environments; keeping the last store" >&2; exit 1; }
   cut -f1 "$WORK/added.tsv" | sort -u | grep -v -x -F -f "$WORK/retired" | while read -r name; do
     while IFS=$'\t' read -r env_id env_name; do
       printf '%s\t%s\t%s\n' "$name" "$env_id" "$env_name"

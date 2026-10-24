@@ -36,8 +36,10 @@ while IFS= read -r line; do
   title=${BASH_REMATCH[6]}
   echo "$title" | grep -qiE "$IGNORE" && continue
 
-  start=$(date -j -f "%Y-%m-%d %H:%M" "$start_date $start_time" +%s 2>/dev/null) || continue
-  end=$(date -j -f "%Y-%m-%d %H:%M" "$end_date $end_time" +%s 2>/dev/null) || continue
+  # Explicit :00 seconds: BSD date fills fields missing from the format with
+  # the current time, so "10:00" parsed as 10:00:<now's seconds>.
+  start=$(date -j -f "%Y-%m-%d %H:%M:%S" "$start_date $start_time:00" +%s 2>/dev/null) || continue
+  end=$(date -j -f "%Y-%m-%d %H:%M:%S" "$end_date $end_time:00" +%s 2>/dev/null) || continue
   (( end <= now )) && continue
 
   if (( start <= now )); then

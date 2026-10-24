@@ -1,8 +1,12 @@
 #!/bin/bash
-# Watches macOS appearance and reloads tmux + ghostty when it changes.
+# Watches macOS appearance and reloads tmux when it changes.
 # Runs as a launchd agent, polling every 30s.
 
+export PATH="/opt/homebrew/bin:$PATH"
+
 CACHE_FILE="/tmp/.macos-appearance-mode"
+LOG_FILE="/tmp/theme-watcher.log"
+TMUX=/opt/homebrew/bin/tmux
 
 get_mode() {
   defaults read -g AppleInterfaceStyle 2>/dev/null || echo "Light"
@@ -18,10 +22,14 @@ fi
 previous=$(cat "$CACHE_FILE")
 
 if [ "$current" != "$previous" ]; then
+  echo "$(date): Switching $previous -> $current" >> "$LOG_FILE"
   echo "$current" > "$CACHE_FILE"
 
   # Reload tmux (regenerates temp conf with correct mode)
-  if command -v tmux >/dev/null 2>&1 && tmux list-sessions >/dev/null 2>&1; then
-    tmux source-file ~/.tmux.conf 2>/dev/null
+  if $TMUX list-sessions >/dev/null 2>&1; then
+    $TMUX source-file ~/.tmux.conf 2>> "$LOG_FILE"
+    echo "$(date): tmux reloaded" >> "$LOG_FILE"
+  else
+    echo "$(date): no tmux sessions found" >> "$LOG_FILE"
   fi
 fi

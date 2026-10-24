@@ -234,7 +234,7 @@ reload_action() {
 sessions_view() {
   local id=$1 pick
   pick=$(session_rows "$id" |
-    fzf --delimiter='\t' --with-nth=2,3 --tabstop=4 "${TELESCOPE[@]}" --no-sort \
+    fzf --delimiter='\t' --with-nth=2,3 --tabstop=4 "${TELESCOPE[@]}" --no-sort --no-multi \
       --input-label=" Sessions · $id " --header='enter attach · f file under a project · esc back' \
       --preview="$SELF --session-preview {1}" --bind="focus,result:transform-preview-label($SELF --label {2})" \
       --bind="f:execute($SELF --file {1})+reload($SELF --session-rows $id)")
@@ -249,7 +249,7 @@ sessions_view() {
 # fails when cancelled with esc.
 ask() {
   local out
-  out=$(printf '' | fzf --print-query --query "$2" --prompt "$1 › " --no-info --reverse --height=3 \
+  out=$(printf '' | fzf --print-query --query "$2" --prompt "$1 › " --no-info --reverse --height=3 --no-multi \
     --header='enter save · esc cancel')
   [ $? -eq 130 ] && return 1
   printf '%s' "$out" | head -n 1
@@ -277,7 +277,7 @@ cycle_status() {
 file_session() {
   local target
   target=$("$JQ" -r '.projects[] | "\(.id)\t\(.name)"' "$PROJECTS_FILE" |
-    fzf --delimiter='\t' --with-nth=2 --reverse --prompt='File under › ' --header='esc cancel' | cut -f1)
+    fzf --delimiter='\t' --with-nth=2 --reverse --no-multi --prompt='File under › ' --header='esc cancel' | cut -f1)
   [ -n "$target" ] || return
   save_projects --arg sid "$1" --arg pid "$target" '.sessions[$sid] = $pid'
 }
@@ -340,7 +340,7 @@ trap 'rm -f "$AGENTS_FILE" "$PENDING_FILE"' EXIT
 refresh_agents
 
 project_rows |
-  fzf --delimiter='\t' --with-nth=2,3 --tabstop=4 "${TELESCOPE[@]}" --no-sort \
+  fzf --delimiter='\t' --with-nth=2,3 --tabstop=4 "${TELESCOPE[@]}" --no-sort --no-multi \
     --prompt='projects › ' --input-label=' Projects ' --header="$(projects_header)" \
     --preview="$SELF --preview {1}" --bind="focus,result:transform-preview-label($SELF --label {2})" \
     --bind="tab:transform($SELF --tab)" \

@@ -41,9 +41,12 @@ LIFECYCLE='
   # once Production has been quiet 14 days. QA and UAT reads are only noted.
   def quiet: lastread | recent | not;
   def testreads: [.split[]? | select(.env != "Production" and (.lastSeen | recent)) | .env];
+  # A Production read that failed (429, timeout, 5xx) has no lastSeen, which
+  # would look quiet; it is unknown, never a ghost.
   def kind:
     if (.inCode | not) then
-      if .split == null then "removed" elif nowhere then "retired" elif quiet then "ghost" else "read" end
+      if .split == null then "removed" elif nowhere then "retired"
+      elif prod.state == "error" then "unknown" elif quiet then "ghost" else "read" end
     elif $actions[.name] then "retiring"
     elif nowhere then "phantom"
     else prod.state end;
@@ -63,6 +66,7 @@ LIFECYCLE='
             elif .state == "on" then (if $retiring then "🛠️" elif .env == "Production" and (.updated | old) then "🧹" else "🟢" end)
             else {targeted: "🎯", split: "🎯", off: "⚪", killed: "🔴", error: "⚠️"}[.state] // "❔" end
           elif .state == "none" then "✅"
+          elif .state == "error" then "⚠️"
           elif (.lastSeen | recent) then "👀"
           else "👻" end]
         | join("") end;
@@ -221,6 +225,7 @@ retire() {
     phantom) tmux display-message "🫥 $name was never set up in Split: create it there, or it always serves control" ;;
     retired) tmux display-message "✅ $name is already retired" ;;
     removed) tmux display-message "🗑️ $name is gone from the code; ctrl-r checks whether it's still in Split" ;;
+    unknown|error) tmux display-message "⚠️ The last scan couldn't read $name from Split; ctrl-r to rescan before deciding" ;;
     *) tmux display-message "$name is still rolling out (Production: $kind), so there's nothing to retire yet" ;;
   esac
 }
@@ -270,10 +275,14 @@ refresh() {
     # Keep going when the popup closes: its terminal hangs up on the way out.
     trap '' HUP
     tell "change-input-label:$(header refreshing)"
-    if [ -d "$FLAGS_DIR/.scanning" ]; then
-      for _ in $(seq 600); do [ -d "$FLAGS_DIR/.scanning" ] || break; sleep 1; done
-      result="done"
-    elif "$SCAN" >/dev/null 2>&1; then
+    # Judge by whether the store changed: a scan that fails keeps the old one.
+    before=$(stat -f %m "$FLAGS_STORE" 2>/dev/null)
+    if scan_running; then
+      for _ in $(seq 600); do scan_running || break; sleep 1; done
+    else
+      "$SCAN" >/dev/null 2>&1
+    fi
+    if [ "$(stat -f %m "$FLAGS_STORE" 2>/dev/null)" != "$before" ]; then
       result="done"
     else
       result=failed

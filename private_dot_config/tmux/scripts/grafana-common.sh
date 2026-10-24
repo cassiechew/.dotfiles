@@ -29,12 +29,15 @@ grafana_token() {
 # leaving out silenced and inhibited ones. It fails when Grafana can't be
 # reached or there's no token.
 grafana_alerts() {
-  local token filter
+  local token filter body
   grafana_configured || return 1
   token=$(grafana_token)
   [ -n "$token" ] || return 1
   filter=$(printf 'team_name="%s"' "$GRAFANA_TEAM" | "$JQ" -sRr @uri)
-  curl -sf --max-time 5 -H "Authorization: Bearer $token" \
-    "$GRAFANA_URL/api/alertmanager/grafana/api/v2/alerts?active=true&silenced=false&inhibited=false&filter=$filter" |
-    "$JQ" 'sort_by(.startsAt)'
+  # Checked before sorting: piped straight into jq, a failed curl looked like
+  # an empty, all-clear answer (jq exits 0 on empty input).
+  body=$(curl -sf --max-time 5 -H "Authorization: Bearer $token" \
+    "$GRAFANA_URL/api/alertmanager/grafana/api/v2/alerts?active=true&silenced=false&inhibited=false&filter=$filter") || return 1
+  printf '%s' "$body" | "$JQ" -e 'type == "array"' >/dev/null 2>&1 || return 1
+  printf '%s' "$body" | "$JQ" 'sort_by(.startsAt)'
 }
